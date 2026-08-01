@@ -63,7 +63,7 @@ type LayoutGroup =
   | { type: 'squares'; items: DashboardWidgetConfig[] }
   | { type: 'card'; item: DashboardWidgetConfig }
 
-const MAX_SQUARES_PER_ROW = 4
+const MAX_SQUARES_PER_ROW = 3
 
 function flushSquares(groups: LayoutGroup[], squares: DashboardWidgetConfig[]) {
   for (let i = 0; i < squares.length; i += MAX_SQUARES_PER_ROW) {
@@ -914,7 +914,7 @@ export function Dashboard() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: gi * 0.04 }}
-                className="grid grid-cols-4 gap-2 sm:gap-3"
+                className="grid grid-cols-3 gap-2 sm:gap-3"
               >
                 {group.items.map((w) => (
                   <div key={w.id} className="min-w-0">

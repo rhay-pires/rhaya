@@ -52,7 +52,12 @@ export interface AppSettings {
   hideBalancesByDefault: boolean
   reduceMotion: boolean
   dashboardWidgets: DashboardWidgetConfig[]
+  /** Bump para reaplicar o preset Padrão após mudanças de layout */
+  dashboardLayoutRev: number
 }
+
+/** Rev atual do layout Padrão (3+card+3). Ao subir, quem ainda está no layout antigo recebe o novo. */
+export const DASHBOARD_LAYOUT_REV = 2
 
 const STORAGE_KEY = 'lifehub-settings-v1'
 
@@ -163,17 +168,15 @@ export function freshWidgets(
 export const DEFAULT_WIDGET_TEMPLATES: Array<
   Pick<DashboardWidgetConfig, 'moduleId' | 'modality' | 'size'>
 > = [
-  /* Fileira 1 — o dia em 4 números */
+  /* Fileira 1 — 3 ícones */
   { moduleId: 'financas', modality: 'saldo', size: 'square' },
   { moduleId: 'habitos', modality: 'progresso', size: 'square' },
   { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
-  { moduleId: 'saude', modality: 'agua', size: 'square' },
-  /* Único card grande — agenda merece espaço */
+  /* Card full-width */
   { moduleId: 'agenda', modality: 'overview', size: 'card' },
-  /* Fileira 2 — motivação + corpo + mente */
+  /* Fileira 2 — 3 ícones */
+  { moduleId: 'saude', modality: 'agua', size: 'square' },
   { moduleId: 'habitos', modality: 'streak', size: 'square' },
-  { moduleId: 'metas', modality: 'media', size: 'square' },
-  { moduleId: 'saude', modality: 'sono', size: 'square' },
   { moduleId: 'devpessoal', modality: 'humor', size: 'square' },
 ]
 
@@ -191,13 +194,13 @@ export const DASHBOARD_PRESETS: {
   {
     id: 'padrao',
     label: 'Padrão',
-    description: '4 ícones → agenda → 4 ícones (streak, metas, sono, humor)',
+    description: '3 ícones → agenda → 3 ícones (água, streak, humor)',
     widgets: DEFAULT_WIDGET_TEMPLATES,
   },
   {
     id: 'compacto',
     label: 'Compacto',
-    description: 'Só ícones quadrados — visão rápida do dia',
+    description: '9 ícones em 3 fileiras — visão rápida do dia',
     widgets: [
       { moduleId: 'financas', modality: 'saldo', size: 'square' },
       { moduleId: 'agenda', modality: 'hoje', size: 'square' },
@@ -207,12 +210,13 @@ export const DASHBOARD_PRESETS: {
       { moduleId: 'metas', modality: 'media', size: 'square' },
       { moduleId: 'devpessoal', modality: 'humor', size: 'square' },
       { moduleId: 'estudos', modality: 'media', size: 'square' },
+      { moduleId: 'saude', modality: 'sono', size: 'square' },
     ],
   },
   {
     id: 'essencial',
     label: 'Essencial',
-    description: 'Saldo + hábitos + trabalho em ícone, agenda em card',
+    description: '3 ícones + agenda em card',
     widgets: [
       { moduleId: 'financas', modality: 'saldo', size: 'square' },
       { moduleId: 'habitos', modality: 'progresso', size: 'square' },
@@ -313,6 +317,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hideBalancesByDefault: false,
   reduceMotion: false,
   dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
+  dashboardLayoutRev: DASHBOARD_LAYOUT_REV,
 }
 
 export const VISUAL_STYLES: {
@@ -371,10 +376,15 @@ function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = loadJSON<Partial<AppSettings>>(STORAGE_KEY, {})
+    const savedRev = saved.dashboardLayoutRev ?? 0
+    const needsLayoutRefresh = savedRev < DASHBOARD_LAYOUT_REV
     return {
       ...DEFAULT_SETTINGS,
       ...saved,
-      dashboardWidgets: normalizeWidgets(saved.dashboardWidgets),
+      dashboardWidgets: needsLayoutRefresh
+        ? freshWidgets(DEFAULT_WIDGET_TEMPLATES)
+        : normalizeWidgets(saved.dashboardWidgets),
+      dashboardLayoutRev: DASHBOARD_LAYOUT_REV,
     }
   })
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
