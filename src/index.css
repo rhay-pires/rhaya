@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neon: #6c4bff;
+  --color-violet: #8b5cf6;
+  --color-electric: #3b82f6;
+  --color-mint: #34d399;
+  --color-rose-soft: #fb7185;
+  --font-sans: "Segoe UI", "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+  --radius-bento: 28px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(108, 75, 255, 0.18), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(59, 130, 246, 0.14), transparent 50%),
+    radial-gradient(700px 400px at 50% 100%, rgba(139, 92, 246, 0.1), transparent 45%),
+    #f7f8fc;
+  color: #1f2937;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c4b5fd;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(243, 244, 246, 1);
+}
+
+.bento-card {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px);
+  border: 1px solid #f3f4f6;
+  border-radius: 28px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.gradient-hero {
+  background: linear-gradient(135deg, #6c4bff 0%, #8b5cf6 45%, #3b82f6 100%);
+}
+
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: scale(1.02);
+}
