@@ -8,6 +8,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -23,10 +24,13 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
+import { BancoIcon, listBancosBrasil } from './BancoIcon'
 import { useApp } from '../store/AppStore'
 import type {
   BankAccount,
+  CreditCard,
   FinancialGoal,
+  Subscription,
   Transaction,
   TransactionCategory,
   TransactionType,
@@ -115,7 +119,7 @@ function ResumoTab() {
   } = useApp()
   const { accent, isGlass, isMinimal, isSoft, surface, primaryBtn, secondaryBtn } = useModuleStyle('financas', '#A5F387')
   const [txModal, setTxModal] = useState<TransactionType | null>(null)
-  const [editAccount, setEditAccount] = useState<BankAccount | null>(null)
+  const [accountModal, setAccountModal] = useState<'new' | BankAccount | null>(null)
 
   const monthTx = useMemo(
     () => transactions.filter((t) => isSameMonth(t.date, year, month)),
@@ -256,7 +260,15 @@ function ResumoTab() {
       </div>
 
       <div>
-        <h4 className="mb-3 text-sm font-bold text-[var(--app-fg)]">Nossas Contas</h4>
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-sm font-bold text-[var(--app-fg)]">Nossas Contas</h4>
+          <button
+            onClick={() => setAccountModal('new')}
+            className="flex items-center gap-1 rounded-full bg-white/80 px-3 py-2 text-xs font-bold text-[#1F2937] hover:scale-105"
+          >
+            <Plus size={14} /> Conta
+          </button>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {accounts.map((acc) => (
             <div
@@ -270,13 +282,13 @@ function ResumoTab() {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-2xl">{acc.emoji}</p>
-                  <p className="mt-2 text-sm font-bold text-[#1F2937]">{acc.bank}</p>
-                  <p className="text-xs text-[#1F2937]/65">{acc.name}</p>
+                  <BancoIcon nome={acc.bank} tamanho={36} />
+                  <p className="mt-2 text-sm font-bold text-[#1F2937]">{acc.name}</p>
+                  <p className="text-xs text-[#1F2937]/65">{acc.bank}</p>
                 </div>
                 <div className="flex gap-1">
                   <button
-                    onClick={() => setEditAccount(acc)}
+                    onClick={() => setAccountModal(acc)}
                     className="rounded-full border-2 border-[#1F2937]/15 bg-white/70 p-1.5 text-[#1F2937]"
                   >
                     <Pencil size={14} />
@@ -369,14 +381,28 @@ function ResumoTab() {
         }}
       />
 
-      <Modal open={!!editAccount} title="Editar Conta" onClose={() => setEditAccount(null)}>
-        {editAccount && (
+      <Modal
+        open={!!accountModal}
+        title={accountModal === 'new' ? 'Nova Conta' : 'Editar Conta'}
+        onClose={() => setAccountModal(null)}
+      >
+        {accountModal && (
           <AccountForm
-            account={editAccount}
+            account={accountModal === 'new' ? undefined : accountModal}
             onSave={(acc) => {
-              setAccounts((list) => list.map((a) => (a.id === acc.id ? acc : a)))
-              setEditAccount(null)
+              setAccounts((list) =>
+                accountModal === 'new' ? [acc, ...list] : list.map((a) => (a.id === acc.id ? acc : a)),
+              )
+              setAccountModal(null)
             }}
+            onDelete={
+              accountModal !== 'new'
+                ? () => {
+                    setAccounts((list) => list.filter((a) => a.id !== (accountModal as BankAccount).id))
+                    setAccountModal(null)
+                  }
+                : undefined
+            }
           />
         )}
       </Modal>
@@ -385,75 +411,209 @@ function ResumoTab() {
 }
 
 function FaturasTab() {
-  const { cards, accounts, payInvoice, balanceVisible } = useApp()
+  const { cards, setCards, accounts, payInvoice, balanceVisible } = useApp()
   const { accent, primaryBtn } = useModuleStyle('financas', '#A5F387')
+  const [cardModal, setCardModal] = useState<'new' | CreditCard | null>(null)
 
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-      {cards.map((card) => {
-        const usedPct = percent(card.used, card.limit)
-        const account = accounts.find((a) => a.id === card.linkedAccountId)
-        return (
-          <div key={card.id} className="space-y-3">
-            <div
-              className="relative overflow-hidden rounded-[28px] p-6 text-white shadow-xl"
-              style={{ background: card.gradient }}
-            >
-              <div className="mb-8 flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-white/70">{card.brand}</p>
-                  <p className="mt-1 text-lg font-semibold">{card.name}</p>
-                </div>
-                <CreditCardIcon size={28} className="opacity-80" />
-              </div>
-              <div className="mb-4 h-8 w-12 rounded-md bg-gradient-to-br from-amber-200 to-amber-400 opacity-90" />
-              <p className="text-xs text-white/70">Fatura atual</p>
-              <p className="text-2xl font-bold">{formatBRLHidden(card.invoiceAmount, balanceVisible)}</p>
-            </div>
-
-            <div className="bento-card space-y-3 p-4">
-              <div>
-                <div className="mb-1 flex justify-between text-xs text-slate-500">
-                  <span>Limite usado</span>
-                  <span>
-                    {formatBRLHidden(card.used, balanceVisible)} /{' '}
-                    {formatBRLHidden(card.limit, balanceVisible)}
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className={`h-full rounded-full ${usedPct >= 80 ? 'bg-rose-500' : ''}`}
-                    style={{
-                      width: `${usedPct}%`,
-                      background: usedPct >= 80 ? undefined : accent,
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
-                <p>Fecha: dia {card.closingDay}</p>
-                <p>Vence: dia {card.dueDay}</p>
-                <p className="col-span-2 text-xs text-slate-400">
-                  Débito em: {account?.emoji} {account?.name ?? '—'}
-                </p>
-              </div>
-              <button
-                onClick={() => payInvoice(card.id)}
-                disabled={card.invoiceAmount <= 0}
-                className={`w-full disabled:opacity-40 ${primaryBtn}`}
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setCardModal('new')}
+          className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-sm hover:scale-105"
+        >
+          <Plus size={16} /> Novo cartão
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {cards.map((card) => {
+          const usedPct = percent(card.used, card.limit)
+          const account = accounts.find((a) => a.id === card.linkedAccountId)
+          return (
+            <div key={card.id} className="space-y-3">
+              <div
+                className="relative overflow-hidden rounded-[28px] p-6 text-white shadow-xl"
+                style={{ background: card.gradient }}
               >
-                Pagar Fatura
-              </button>
+                <div className="mb-8 flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-white/70">{card.brand}</p>
+                    <p className="mt-1 text-lg font-semibold">{card.name}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCardModal(card)}
+                      className="rounded-full bg-white/20 p-1.5 hover:bg-white/30"
+                      aria-label="Editar cartão"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <CreditCardIcon size={28} className="opacity-80" />
+                  </div>
+                </div>
+                <div className="mb-4 h-8 w-12 rounded-md bg-gradient-to-br from-amber-200 to-amber-400 opacity-90" />
+                <p className="text-xs text-white/70">Fatura atual</p>
+                <p className="text-2xl font-bold">{formatBRLHidden(card.invoiceAmount, balanceVisible)}</p>
+              </div>
+
+              <div className="bento-card space-y-3 p-4">
+                <div>
+                  <div className="mb-1 flex justify-between text-xs text-slate-500">
+                    <span>Limite usado</span>
+                    <span>
+                      {formatBRLHidden(card.used, balanceVisible)} /{' '}
+                      {formatBRLHidden(card.limit, balanceVisible)}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full rounded-full ${usedPct >= 80 ? 'bg-rose-500' : ''}`}
+                      style={{
+                        width: `${usedPct}%`,
+                        background: usedPct >= 80 ? undefined : accent,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
+                  <p>Fecha: dia {card.closingDay}</p>
+                  <p>Vence: dia {card.dueDay}</p>
+                  <p className="col-span-2 flex items-center gap-1 text-xs text-slate-400">
+                    Débito em: <BancoIcon nome={account?.bank ?? ''} tamanho={16} /> {account?.name ?? '—'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => payInvoice(card.id)}
+                  disabled={card.invoiceAmount <= 0}
+                  className={`w-full disabled:opacity-40 ${primaryBtn}`}
+                >
+                  Pagar Fatura
+                </button>
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
+
+      {cards.length === 0 && <EmptyState text="Nenhum cartão cadastrado" />}
+
+      <Modal
+        open={!!cardModal}
+        title={cardModal === 'new' ? 'Novo Cartão' : 'Editar Cartão'}
+        onClose={() => setCardModal(null)}
+      >
+        {cardModal && (
+          <CardForm
+            card={cardModal === 'new' ? undefined : cardModal}
+            accounts={accounts}
+            onSave={(c) => {
+              setCards((list) => (cardModal === 'new' ? [c, ...list] : list.map((x) => (x.id === c.id ? c : x))))
+              setCardModal(null)
+            }}
+            onDelete={
+              cardModal !== 'new'
+                ? () => {
+                    setCards((list) => list.filter((x) => x.id !== (cardModal as CreditCard).id))
+                    setCardModal(null)
+                  }
+                : undefined
+            }
+          />
+        )}
+      </Modal>
     </div>
   )
 }
 
+const GRADIENTS = [
+  'linear-gradient(135deg, #820AD1, #4C1D95)',
+  'linear-gradient(135deg, #FF7A00, #C2410C)',
+  'linear-gradient(135deg, #1A1A1A, #374151)',
+  'linear-gradient(135deg, #005CA9, #003D7A)',
+  'linear-gradient(135deg, #CC092F, #7F1D1D)',
+  'linear-gradient(135deg, #6C4BFF, #3B0764)',
+]
+
+function CardForm({
+  card,
+  accounts,
+  onSave,
+  onDelete,
+}: {
+  card?: CreditCard
+  accounts: BankAccount[]
+  onSave: (c: CreditCard) => void
+  onDelete?: () => void
+}) {
+  const [form, setForm] = useState<CreditCard>(
+    card ?? {
+      id: uid('card'),
+      name: '',
+      brand: 'Mastercard',
+      limit: 1000,
+      used: 0,
+      invoiceAmount: 0,
+      closingDay: 5,
+      dueDay: 12,
+      linkedAccountId: accounts[0]?.id ?? '',
+      gradient: GRADIENTS[0],
+    },
+  )
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave(form)
+      }}
+    >
+      <input className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm" placeholder="Nome do cartão" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+      <select className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })}>
+        <option>Mastercard</option>
+        <option>Visa</option>
+        <option>Elo</option>
+        <option>American Express</option>
+      </select>
+      <div className="grid grid-cols-2 gap-2">
+        <input className="rounded-2xl border border-gray-100 px-3 py-3 text-sm" type="number" placeholder="Limite" value={form.limit} onChange={(e) => setForm({ ...form, limit: Number(e.target.value) || 0 })} />
+        <input className="rounded-2xl border border-gray-100 px-3 py-3 text-sm" type="number" placeholder="Usado" value={form.used} onChange={(e) => setForm({ ...form, used: Number(e.target.value) || 0 })} />
+      </div>
+      <input className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm" type="number" placeholder="Valor da fatura atual" value={form.invoiceAmount} onChange={(e) => setForm({ ...form, invoiceAmount: Number(e.target.value) || 0 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <input className="rounded-2xl border border-gray-100 px-3 py-3 text-sm" type="number" min={1} max={31} placeholder="Dia fechamento" value={form.closingDay} onChange={(e) => setForm({ ...form, closingDay: Number(e.target.value) || 1 })} />
+        <input className="rounded-2xl border border-gray-100 px-3 py-3 text-sm" type="number" min={1} max={31} placeholder="Dia vencimento" value={form.dueDay} onChange={(e) => setForm({ ...form, dueDay: Number(e.target.value) || 1 })} />
+      </div>
+      <select className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm" value={form.linkedAccountId} onChange={(e) => setForm({ ...form, linkedAccountId: e.target.value })}>
+        {accounts.map((a) => (
+          <option key={a.id} value={a.id}>{a.name}</option>
+        ))}
+      </select>
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Cor</p>
+        <div className="flex flex-wrap gap-2">
+          {GRADIENTS.map((g) => (
+            <button
+              type="button"
+              key={g}
+              onClick={() => setForm({ ...form, gradient: g })}
+              className={`h-9 w-9 rounded-full border-2 ${form.gradient === g ? 'border-[#1F2937]' : 'border-transparent'}`}
+              style={{ background: g }}
+            />
+          ))}
+        </div>
+      </div>
+      <button className="w-full rounded-full bg-[var(--fin-accent,#6C4BFF)] py-3 text-sm font-bold text-[#1F2937]">Salvar</button>
+      {onDelete && (
+        <button type="button" onClick={onDelete} className="w-full rounded-full bg-rose-50 py-3 text-sm font-bold text-rose-500">
+          Excluir cartão
+        </button>
+      )}
+    </form>
+  )
+}
+
 function ExtratoTab() {
-  const { transactions, accounts, deleteTransaction, year, month, balanceVisible } = useApp()
+  const { transactions, accounts, deleteTransaction, generateRecurring, year, month, balanceVisible } = useApp()
   const [type, setType] = useState<'todos' | TransactionType>('todos')
   const [category, setCategory] = useState<'todas' | TransactionCategory>('todas')
   const [accountId, setAccountId] = useState('todas')
@@ -467,6 +627,12 @@ function ExtratoTab() {
 
   return (
     <div className="space-y-4">
+      <button
+        onClick={generateRecurring}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#6C4BFF]/40 py-3 text-sm font-bold text-[#6C4BFF] hover:border-[#6C4BFF]"
+      >
+        <RefreshCw size={14} /> Gerar recorrentes do mês
+      </button>
       <div className="bento-card flex flex-wrap gap-3 p-4">
         <select
           className="rounded-2xl border border-gray-100 bg-white px-3 py-2 text-sm"
@@ -515,7 +681,10 @@ function ExtratoTab() {
               return (
                 <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-700">{t.description}</p>
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                      {t.description}
+                      {t.recurring && <RefreshCw size={11} className="text-violet-400" />}
+                    </p>
                     <p className="text-xs text-slate-400">
                       {t.date} · {t.category} · {acc?.name}
                     </p>
@@ -597,8 +766,9 @@ function LimitesTab() {
 }
 
 function MetasTab() {
-  const { financialGoals, depositGoal, setFinancialGoals } = useApp()
+  const { financialGoals, depositGoal, setFinancialGoals, accounts } = useApp()
   const [amounts, setAmounts] = useState<Record<string, string>>({})
+  const [depositAccount, setDepositAccount] = useState<Record<string, string>>({})
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({
     title: '',
@@ -646,20 +816,33 @@ function MetasTab() {
                   </div>
                   <p className="mt-1 text-right text-xs font-medium text-violet-600">{pct}%</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <input
                     type="number"
                     placeholder="Valor"
-                    className="flex-1 rounded-2xl border border-gray-100 px-3 py-2 text-sm"
+                    className="flex-1 rounded-2xl border border-gray-100 px-3 py-2.5 text-sm"
                     value={amounts[goal.id] ?? ''}
                     onChange={(e) => setAmounts((a) => ({ ...a, [goal.id]: e.target.value }))}
                   />
+                  <select
+                    className="rounded-2xl border border-gray-100 px-3 py-2.5 text-sm"
+                    value={depositAccount[goal.id] ?? accounts[0]?.id ?? ''}
+                    onChange={(e) => setDepositAccount((a) => ({ ...a, [goal.id]: e.target.value }))}
+                  >
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
                   <button
                     onClick={() => {
-                      depositGoal(goal.id, Number(amounts[goal.id]) || 0)
+                      depositGoal(
+                        goal.id,
+                        Number(amounts[goal.id]) || 0,
+                        depositAccount[goal.id] ?? accounts[0]?.id,
+                      )
                       setAmounts((a) => ({ ...a, [goal.id]: '' }))
                     }}
-                    className="rounded-2xl bg-violet-100 px-3 py-2 text-sm font-semibold text-violet-700 hover:scale-105"
+                    className="rounded-2xl bg-violet-100 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:scale-105"
                   >
                     Depositar
                   </button>
@@ -795,12 +978,21 @@ function DecisaoTab() {
 function AssinaturasTab() {
   const { subscriptions, setSubscriptions, balanceVisible } = useApp()
   const activeTotal = subscriptions.filter((s) => !s.paused).reduce((s, x) => s + x.amount, 0)
+  const [subModal, setSubModal] = useState<'new' | Subscription | null>(null)
 
   return (
     <div className="space-y-4">
-      <div className="bento-card p-5">
-        <p className="text-sm text-slate-500">Faturamento previsto (ativas)</p>
-        <p className="mt-1 text-2xl font-bold text-violet-600">{formatBRLHidden(activeTotal, balanceVisible)}</p>
+      <div className="bento-card flex items-center justify-between gap-3 p-5">
+        <div>
+          <p className="text-sm text-slate-500">Faturamento previsto (ativas)</p>
+          <p className="mt-1 text-2xl font-bold text-violet-600">{formatBRLHidden(activeTotal, balanceVisible)}</p>
+        </div>
+        <button
+          onClick={() => setSubModal('new')}
+          className="flex items-center gap-2 rounded-full bg-violet-100 px-4 py-2.5 text-sm font-bold text-violet-700 hover:scale-105"
+        >
+          <Plus size={16} /> Nova
+        </button>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {subscriptions.map((sub) => (
@@ -815,24 +1007,111 @@ function AssinaturasTab() {
                   <p className="text-xs text-slate-400">{sub.category} · vence dia {sub.dueDay}</p>
                 </div>
               </div>
-              <button
-                onClick={() =>
-                  setSubscriptions((list) =>
-                    list.map((s) => (s.id === sub.id ? { ...s, paused: !s.paused } : s)),
-                  )
-                }
-                className="rounded-full bg-violet-50 p-2 text-violet-600 hover:scale-105"
-                title={sub.paused ? 'Retomar' : 'Pausar'}
-              >
-                {sub.paused ? <Play size={16} /> : <Pause size={16} />}
-              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() =>
+                    setSubscriptions((list) =>
+                      list.map((s) => (s.id === sub.id ? { ...s, paused: !s.paused } : s)),
+                    )
+                  }
+                  className="rounded-full bg-violet-50 p-2 text-violet-600 hover:scale-105"
+                  title={sub.paused ? 'Retomar' : 'Pausar'}
+                >
+                  {sub.paused ? <Play size={16} /> : <Pause size={16} />}
+                </button>
+                <button
+                  onClick={() => setSubModal(sub)}
+                  className="rounded-full bg-slate-50 p-2 text-slate-500 hover:scale-105"
+                  title="Editar"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => setSubscriptions((list) => list.filter((s) => s.id !== sub.id))}
+                  className="rounded-full bg-rose-50 p-2 text-rose-500 hover:scale-105"
+                  title="Excluir"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
             <p className="mt-4 text-lg font-bold text-slate-700">{formatBRL(sub.amount)}</p>
             <p className="text-xs text-slate-400">{sub.paused ? 'Pausada — não impacta previsão' : 'Ativa'}</p>
           </div>
         ))}
       </div>
+      {subscriptions.length === 0 && <EmptyState text="Nenhuma assinatura cadastrada" />}
+
+      <Modal
+        open={!!subModal}
+        title={subModal === 'new' ? 'Nova Assinatura' : 'Editar Assinatura'}
+        onClose={() => setSubModal(null)}
+      >
+        {subModal && (
+          <SubscriptionForm
+            subscription={subModal === 'new' ? undefined : subModal}
+            onSave={(s) => {
+              setSubscriptions((list) =>
+                subModal === 'new' ? [s, ...list] : list.map((x) => (x.id === s.id ? s : x)),
+              )
+              setSubModal(null)
+            }}
+            onDelete={
+              subModal !== 'new'
+                ? () => {
+                    setSubscriptions((list) => list.filter((x) => x.id !== (subModal as Subscription).id))
+                    setSubModal(null)
+                  }
+                : undefined
+            }
+          />
+        )}
+      </Modal>
     </div>
+  )
+}
+
+function SubscriptionForm({
+  subscription,
+  onSave,
+  onDelete,
+}: {
+  subscription?: Subscription
+  onSave: (s: Subscription) => void
+  onDelete?: () => void
+}) {
+  const [form, setForm] = useState<Subscription>(
+    subscription ?? {
+      id: uid('sub'),
+      name: '',
+      amount: 0,
+      dueDay: 10,
+      category: 'Streaming',
+      paused: false,
+      color: '#6C4BFF',
+    },
+  )
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave(form)
+      }}
+    >
+      <input className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm" placeholder="Nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+      <input className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm" type="number" step="0.01" placeholder="Valor mensal" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) || 0 })} required />
+      <div className="grid grid-cols-2 gap-2">
+        <input className="rounded-2xl border border-gray-100 px-3 py-3 text-sm" type="number" min={1} max={31} placeholder="Dia vencimento" value={form.dueDay} onChange={(e) => setForm({ ...form, dueDay: Number(e.target.value) || 1 })} />
+        <input className="rounded-2xl border border-gray-100 px-3 py-3 text-sm" placeholder="Categoria" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+      </div>
+      <button className="w-full rounded-full bg-violet-600 py-3 text-sm font-bold text-white">Salvar</button>
+      {onDelete && (
+        <button type="button" onClick={onDelete} className="w-full rounded-full bg-rose-50 py-3 text-sm font-bold text-rose-500">
+          Excluir assinatura
+        </button>
+      )}
+    </form>
   )
 }
 
@@ -855,6 +1134,7 @@ function TransactionModal({
     category: 'Outros' as TransactionCategory,
     accountId: accounts[0]?.id ?? '',
     date: todayISO(),
+    recurring: false,
   })
 
   return (
@@ -870,6 +1150,7 @@ function TransactionModal({
             category: form.category,
             accountId: form.accountId,
             date: form.date,
+            recurring: form.recurring,
           })
         }}
       >
@@ -886,14 +1167,41 @@ function TransactionModal({
           ))}
         </select>
         <input className="w-full rounded-2xl border border-gray-100 px-3 py-2 text-sm" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+        <label className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-3 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={form.recurring}
+            onChange={(e) => setForm({ ...form, recurring: e.target.checked })}
+            className="h-4 w-4 accent-[#6C4BFF]"
+          />
+          Repetir todo mês
+        </label>
         <button className="w-full rounded-full bg-[var(--fin-accent,#6C4BFF)] py-2.5 text-sm font-bold text-[#1F2937]">Salvar</button>
       </form>
     </Modal>
   )
 }
 
-function AccountForm({ account, onSave }: { account: BankAccount; onSave: (a: BankAccount) => void }) {
-  const [form, setForm] = useState(account)
+function AccountForm({
+  account,
+  onSave,
+  onDelete,
+}: {
+  account?: BankAccount
+  onSave: (a: BankAccount) => void
+  onDelete?: () => void
+}) {
+  const bancos = useMemo(() => listBancosBrasil(), [])
+  const [form, setForm] = useState<BankAccount>(
+    account ?? {
+      id: uid('acc'),
+      bank: bancos[0]?.slug ?? 'nubank',
+      name: '',
+      balance: 0,
+      color: bancos[0]?.fundo ?? '#6C4BFF',
+      emoji: '🏦',
+    },
+  )
   return (
     <form
       className="space-y-3"
@@ -902,9 +1210,53 @@ function AccountForm({ account, onSave }: { account: BankAccount; onSave: (a: Ba
         onSave(form)
       }}
     >
-      <input className="w-full rounded-2xl border border-gray-100 px-3 py-2 text-sm" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-      <input className="w-full rounded-2xl border border-gray-100 px-3 py-2 text-sm" type="number" step="0.01" value={form.balance} onChange={(e) => setForm({ ...form, balance: Number(e.target.value) || 0 })} />
-      <button className="w-full rounded-full bg-[var(--fin-accent,#6C4BFF)] py-2.5 text-sm font-bold text-[#1F2937]">Salvar</button>
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Banco</p>
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
+          {bancos.map((b) => (
+            <button
+              type="button"
+              key={b.slug}
+              onClick={() => setForm((f) => ({ ...f, bank: b.slug, color: b.fundo }))}
+              className={`flex min-w-[68px] flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-2.5 transition ${
+                form.bank === b.slug ? 'border-[#1F2937] bg-slate-50' : 'border-transparent'
+              }`}
+            >
+              <BancoIcon nome={b.slug} tamanho={32} />
+              <span className="max-w-[64px] truncate text-[10px] font-semibold text-slate-600">
+                {b.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <input
+        className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm"
+        placeholder="Nome da conta"
+        value={form.name}
+        onChange={(e) => setForm({ ...form, name: e.target.value })}
+        required
+      />
+      <input
+        className="w-full rounded-2xl border border-gray-100 px-3 py-3 text-sm"
+        type="number"
+        step="0.01"
+        placeholder="Saldo"
+        value={form.balance}
+        onChange={(e) => setForm({ ...form, balance: Number(e.target.value) || 0 })}
+      />
+      <button className="w-full rounded-full bg-[var(--fin-accent,#6C4BFF)] py-3 text-sm font-bold text-[#1F2937]">
+        Salvar
+      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="w-full rounded-full bg-rose-50 py-3 text-sm font-bold text-rose-500"
+        >
+          Excluir conta
+        </button>
+      )}
     </form>
   )
 }

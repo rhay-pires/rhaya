@@ -7,11 +7,14 @@ import {
   Dumbbell,
   Flame,
   PenLine,
+  Pencil,
   Plus,
   Sparkles,
   Sunrise,
   Sunset,
   Moon,
+  Trash2,
+  type LucideIcon,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { VIEW_OPTIONS } from '../data/modules'
@@ -20,6 +23,7 @@ import { useApp } from '../store/AppStore'
 import { useCustomization } from '../store/CustomizationStore'
 import type { Habit, ViewMode } from '../types'
 import { todayISO, uid } from '../utils/format'
+import { isHabitDue, WEEKDAY_LABELS } from '../utils/habits'
 import { ModuleHero } from './ModuleHero'
 import { Modal } from './ui'
 import { ViewSwitcher } from './ViewSwitcher'
@@ -30,9 +34,20 @@ const periodMeta = {
   noite: { label: 'Noite', Icon: Moon, tint: 'bg-[#FCE7F3] text-[#DB2777]', soft: 'bg-[#FDF2F8]' },
 }
 
-const habitIcons = [Brain, Droplets, BookOpen, Dumbbell, PenLine, Sparkles]
+const ICONS: Record<string, LucideIcon> = {
+  brain: Brain,
+  droplets: Droplets,
+  book: BookOpen,
+  dumbbell: Dumbbell,
+  pen: PenLine,
+  sparkles: Sparkles,
+}
+const ICON_KEYS = Object.keys(ICONS)
+const habitIcons = Object.values(ICONS)
+const HABIT_COLORS = ['#8B5CF6', '#3B82F6', '#6C4BFF', '#34D399', '#FB7185', '#F59E0B', '#DB2777', '#06B6D4']
 
-function habitIcon(index: number) {
+function habitIcon(habit: Habit, index: number) {
+  if (habit.iconKey && ICONS[habit.iconKey]) return ICONS[habit.iconKey]
   return habitIcons[index % habitIcons.length]
 }
 
@@ -77,9 +92,7 @@ export function Habitos() {
   const mod = getModule('habitos')
   const view = (mod?.viewMode === 'insights' ? 'insights' : 'rotina') as 'rotina' | 'insights'
   const [selectedDate, setSelectedDate] = useState(todayISO())
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [period, setPeriod] = useState<'manha' | 'tarde' | 'noite'>('manha')
+  const [editing, setEditing] = useState<Habit | 'new' | null>(null)
 
   const setView = (v: ViewMode) => setModuleView('habitos', v)
 
@@ -90,8 +103,9 @@ export function Habitos() {
     [selectedDate],
   )
 
-  const done = habits.filter((h) => h.completedDates.includes(selectedDate)).length
-  const pct = habits.length ? Math.round((done / habits.length) * 100) : 0
+  const dueToday = useMemo(() => habits.filter((h) => isHabitDue(h, selectedDate)), [habits, selectedDate])
+  const done = dueToday.filter((h) => h.completedDates.includes(selectedDate)).length
+  const pct = dueToday.length ? Math.round((done / dueToday.length) * 100) : 0
   const bestStreak = Math.max(0, ...habits.map((h) => h.streak))
 
   const ordered = useMemo(() => {
@@ -135,7 +149,7 @@ export function Habitos() {
         fallback="#FFEA5D"
         title="Conclusão do dia"
         value={`${pct}%`}
-        subtitle={`${done}/${habits.length} hábitos · streak ${bestStreak}`}
+        subtitle={`${done}/${dueToday.length} hábitos hoje · streak ${bestStreak}`}
       />
 
       <AnimatePresence mode="wait">
@@ -202,7 +216,7 @@ export function Habitos() {
                       Progresso do dia
                     </p>
                     <p className="mt-1 text-2xl font-bold text-[#1E1B4B]">
-                      {done} de {habits.length} hábitos
+                      {done} de {dueToday.length} hábitos
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
                       {pct >= 80
@@ -256,10 +270,10 @@ export function Habitos() {
 
                 {ordered.map((h, index) => {
                   const checked = h.completedDates.includes(selectedDate)
+                  const due = isHabitDue(h, selectedDate)
                   const meta = periodMeta[h.period]
-                  const Icon = habitIcon(index)
+                  const Icon = habitIcon(h, index)
                   const PeriodIcon = meta.Icon
-                  const isSelectedDayToday = selectedDate === todayISO()
 
                   return (
                     <motion.div
@@ -268,31 +282,12 @@ export function Habitos() {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      className="relative flex items-stretch gap-3"
+                      className={`relative flex items-stretch gap-3 ${due ? '' : 'opacity-45'}`}
                     >
                       <button
-                        onClick={() => {
-                          if (isSelectedDayToday) toggleHabit(h.id)
-                          else {
-                            // allow toggling any selected day by manually updating
-                            setHabits((list) =>
-                              list.map((item) => {
-                                if (item.id !== h.id) return item
-                                const has = item.completedDates.includes(selectedDate)
-                                return {
-                                  ...item,
-                                  completedDates: has
-                                    ? item.completedDates.filter((d) => d !== selectedDate)
-                                    : [...item.completedDates, selectedDate],
-                                  streak: has
-                                    ? Math.max(0, item.streak - (selectedDate === todayISO() ? 1 : 0))
-                                    : item.streak + (selectedDate === todayISO() ? 1 : 0),
-                                }
-                              }),
-                            )
-                          }
-                        }}
-                        className={`relative z-10 mt-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition hover:scale-110 ${
+                        onClick={() => due && toggleHabit(h.id, selectedDate)}
+                        disabled={!due}
+                        className={`relative z-10 mt-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition hover:scale-110 disabled:hover:scale-100 ${
                           checked
                             ? 'border-[#6C4BFF] bg-[#6C4BFF] text-white shadow-[0_0_0_4px_rgba(108,75,255,0.15)]'
                             : 'border-[#C4B5FD] bg-white text-transparent'
@@ -303,9 +298,7 @@ export function Habitos() {
                       </button>
 
                       <button
-                        onClick={() => {
-                          if (isSelectedDayToday) toggleHabit(h.id)
-                        }}
+                        onClick={() => due && toggleHabit(h.id, selectedDate)}
                         className={`flex flex-1 items-center gap-3 rounded-[28px] bg-white p-3.5 text-left shadow-[0_8px_30px_rgba(108,75,255,0.06)] transition hover:scale-[1.01] ${
                           checked ? 'ring-2 ring-[#DDD6FE]' : ''
                         }`}
@@ -319,12 +312,19 @@ export function Habitos() {
                           </p>
                           <p className="mt-0.5 text-xs text-slate-400">
                             <PeriodIcon size={11} className="mr-1 inline" />
-                            {meta.label} · 🔥 {h.streak} streak
+                            {meta.label} · 🔥 {h.streak} streak{!due ? ' · não previsto hoje' : ''}
                           </p>
                         </div>
-                        <span className="shrink-0 rounded-full bg-[#F5F3FF] px-3 py-1 text-xs font-semibold text-[#6C4BFF]">
+                        <span className="hidden shrink-0 rounded-full bg-[#F5F3FF] px-3 py-1 text-xs font-semibold text-[#6C4BFF] sm:block">
                           {durationLabel(h.period)}
                         </span>
+                      </button>
+                      <button
+                        onClick={() => setEditing(h)}
+                        className="mt-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#6C4BFF]/70 shadow-sm"
+                        aria-label="Editar hábito"
+                      >
+                        <Pencil size={14} />
                       </button>
                     </motion.div>
                   )
@@ -383,7 +383,7 @@ export function Habitos() {
 
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Concluídos hoje', value: `${done}/${habits.length}` },
+                  { label: 'Concluídos hoje', value: `${done}/${dueToday.length}` },
                   { label: 'Melhor streak', value: `${bestStreak}` },
                   { label: 'Check-ins', value: `${habits.reduce((s, h) => s + h.completedDates.length, 0)}` },
                 ].map((stat) => (
@@ -446,67 +446,176 @@ export function Habitos() {
 
       {/* FAB */}
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => setEditing('new')}
         className={`fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center ${primaryBtn} !rounded-full !px-0 !py-0 md:bottom-8 md:right-10`}
         aria-label="Adicionar hábito"
       >
         <Plus size={24} />
       </button>
 
-      <Modal open={open} title="Novo hábito" onClose={() => setOpen(false)}>
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setHabits((list) => [
-              {
-                id: uid('h'),
-                name,
-                period,
-                streak: 0,
-                completedDates: [],
-                color: '#8B5CF6',
-              },
-              ...list,
-            ])
-            setName('')
-            setOpen(false)
-            setView('rotina')
-          }}
-        >
-          <input
-            className="w-full rounded-[20px] border border-[#EDE9FE] bg-[#F8F7FF] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#C4B5FD]"
-            placeholder="Nome do hábito"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <div className="grid grid-cols-3 gap-2">
-            {(['manha', 'tarde', 'noite'] as const).map((p) => {
-              const meta = periodMeta[p]
-              const Icon = meta.Icon
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPeriod(p)}
-                  className={`rounded-[20px] px-3 py-3 text-sm font-semibold transition ${
-                    period === p
-                      ? 'bg-[#2E1065] text-white'
-                      : `${meta.soft} text-slate-600`
-                  }`}
-                >
-                  <Icon size={16} className="mx-auto mb-1" />
-                  {meta.label}
-                </button>
+      <Modal open={!!editing} title={editing === 'new' ? 'Novo hábito' : 'Editar hábito'} onClose={() => setEditing(null)}>
+        {editing && (
+          <HabitForm
+            habit={editing === 'new' ? undefined : editing}
+            onSave={(h) => {
+              setHabits((list) =>
+                editing === 'new' ? [h, ...list] : list.map((x) => (x.id === h.id ? h : x)),
               )
-            })}
-          </div>
-          <button className={`w-full ${primaryBtn}`}>
-            Salvar hábito
-          </button>
-        </form>
+              setEditing(null)
+              setView('rotina')
+            }}
+            onDelete={
+              editing !== 'new'
+                ? () => {
+                    setHabits((list) => list.filter((x) => x.id !== (editing as Habit).id))
+                    setEditing(null)
+                  }
+                : undefined
+            }
+          />
+        )}
       </Modal>
     </div>
+  )
+}
+
+function HabitForm({
+  habit,
+  onSave,
+  onDelete,
+}: {
+  habit?: Habit
+  onSave: (h: Habit) => void
+  onDelete?: () => void
+}) {
+  const { primaryBtn } = useModuleStyle('habitos', '#FFEA5D')
+  const [form, setForm] = useState<Habit>(
+    habit ?? {
+      id: uid('h'),
+      name: '',
+      period: 'manha',
+      streak: 0,
+      completedDates: [],
+      color: HABIT_COLORS[0],
+      weekdays: [],
+      iconKey: ICON_KEYS[0],
+    },
+  )
+
+  const toggleWeekday = (dow: number) => {
+    setForm((f) => {
+      const current = f.weekdays && f.weekdays.length ? f.weekdays : [0, 1, 2, 3, 4, 5, 6]
+      const has = current.includes(dow)
+      const next = has ? current.filter((d) => d !== dow) : [...current, dow].sort()
+      return { ...f, weekdays: next.length === 7 ? [] : next }
+    })
+  }
+
+  const activeWeekdays = form.weekdays && form.weekdays.length ? form.weekdays : [0, 1, 2, 3, 4, 5, 6]
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave(form)
+      }}
+    >
+      <input
+        className="w-full rounded-[20px] border border-[#EDE9FE] bg-[#F8F7FF] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#C4B5FD]"
+        placeholder="Nome do hábito"
+        value={form.name}
+        onChange={(e) => setForm({ ...form, name: e.target.value })}
+        required
+      />
+      <div className="grid grid-cols-3 gap-2">
+        {(['manha', 'tarde', 'noite'] as const).map((p) => {
+          const meta = periodMeta[p]
+          const Icon = meta.Icon
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setForm({ ...form, period: p })}
+              className={`rounded-[20px] px-3 py-3 text-sm font-semibold transition ${
+                form.period === p ? 'bg-[#2E1065] text-white' : `${meta.soft} text-slate-600`
+              }`}
+            >
+              <Icon size={16} className="mx-auto mb-1" />
+              {meta.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Dias da semana</p>
+        <div className="flex justify-between gap-1">
+          {WEEKDAY_LABELS.map((label, dow) => {
+            const active = activeWeekdays.includes(dow)
+            return (
+              <button
+                key={dow}
+                type="button"
+                onClick={() => toggleWeekday(dow)}
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition ${
+                  active ? 'bg-[#6C4BFF] text-white' : 'bg-[#F5F3FF] text-slate-400'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Ícone</p>
+        <div className="flex flex-wrap gap-2">
+          {ICON_KEYS.map((key) => {
+            const Icon = ICONS[key]
+            const active = form.iconKey === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setForm({ ...form, iconKey: key })}
+                className={`flex h-10 w-10 items-center justify-center rounded-2xl transition ${
+                  active ? 'bg-[#2E1065] text-white' : 'bg-[#F5F3FF] text-[#6C4BFF]'
+                }`}
+              >
+                <Icon size={16} />
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Cor</p>
+        <div className="flex flex-wrap gap-2">
+          {HABIT_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setForm({ ...form, color: c })}
+              className={`h-8 w-8 rounded-full border-2 ${form.color === c ? 'border-[#1F2937]' : 'border-transparent'}`}
+              style={{ background: c }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <button className={`w-full ${primaryBtn}`}>Salvar hábito</button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-rose-50 py-3 text-sm font-bold text-rose-500"
+        >
+          <Trash2 size={14} /> Excluir hábito
+        </button>
+      )}
+    </form>
   )
 }

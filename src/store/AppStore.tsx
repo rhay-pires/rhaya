@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -51,8 +52,9 @@ import {
   initialTransactions,
   initialWheel,
 } from '../data/seed'
-import { todayISO, uid } from '../utils/format'
+import { isSameMonth, todayISO, uid } from '../utils/format'
 import { loadJSON, saveJSON } from '../utils/storage'
+import { computeStreak } from '../utils/habits'
 
 const STORAGE_KEY = 'lifehub-data-v1'
 
@@ -73,6 +75,7 @@ interface PersistedData {
   subjects: Subject[]
   flashcards: Flashcard[]
   health: HealthLog
+  healthHistory: HealthLog[]
   wheel: WheelScore[]
   gratitude: GratitudeEntry[]
   books: Book[]
@@ -102,6 +105,7 @@ const defaults: PersistedData = {
   subjects: initialSubjects,
   flashcards: initialFlashcards,
   health: initialHealth,
+  healthHistory: [],
   wheel: initialWheel,
   gratitude: initialGratitude,
   books: initialBooks,
@@ -133,6 +137,7 @@ interface AppStore extends PersistedData {
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>
   setFlashcards: React.Dispatch<React.SetStateAction<Flashcard[]>>
   setHealth: React.Dispatch<React.SetStateAction<HealthLog>>
+  setHealthHistory: React.Dispatch<React.SetStateAction<HealthLog[]>>
   setWheel: React.Dispatch<React.SetStateAction<WheelScore[]>>
   setGratitude: React.Dispatch<React.SetStateAction<GratitudeEntry[]>>
   setBooks: React.Dispatch<React.SetStateAction<Book[]>>
@@ -143,8 +148,9 @@ interface AppStore extends PersistedData {
   addTransaction: (tx: Omit<Transaction, 'id'>) => void
   deleteTransaction: (id: string) => void
   payInvoice: (cardId: string) => void
-  depositGoal: (goalId: string, amount: number) => void
-  toggleHabit: (habitId: string) => void
+  depositGoal: (goalId: string, amount: number, accountId?: string) => void
+  toggleHabit: (habitId: string, dateISO?: string) => void
+  generateRecurring: () => void
   replaceAllData: (data: Partial<PersistedData>) => void
   resetAllData: () => void
   exportData: () => PersistedData
@@ -184,6 +190,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState(initial.subjects)
   const [flashcards, setFlashcards] = useState(initial.flashcards)
   const [health, setHealth] = useState(initial.health)
+  const [healthHistory, setHealthHistory] = useState(initial.healthHistory)
   const [wheel, setWheel] = useState(initial.wheel)
   const [gratitude, setGratitude] = useState(initial.gratitude)
   const [books, setBooks] = useState(initial.books)
@@ -209,6 +216,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       subjects,
       flashcards,
       health,
+      healthHistory,
       wheel,
       gratitude,
       books,
@@ -233,6 +241,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       subjects,
       flashcards,
       health,
+      healthHistory,
       wheel,
       gratitude,
       books,
@@ -245,6 +254,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveJSON(STORAGE_KEY, persisted)
   }, [persisted])
+
+  // Reset diário do log de saúde ao virar o dia (mantém peso)
+  useEffect(() => {
+    const today = todayISO()
+    if (health.date !== today) {
+      setHealthHistory((h) => [health, ...h].slice(0, 60))
+      setHealth({
+        date: today,
+        waterMl: 0,
+        sleepHours: 0,
+        workout: '',
+        meals: '',
+        weightKg: health.weightKg,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Notifica compromissos de hoje com lembrete ativo, uma vez ao abrir o app
+  const remindedRef = useRef(false)
+  useEffect(() => {
+    if (remindedRef.current) return
+    remindedRef.current = true
+    const today = todayISO()
+    const due = appointments.filter((a) => a.reminder && a.date === today && !a.done)
+    if (due.length > 0) {
+      due.forEach((a) => {
+        setNotifications((n) => [`Lembrete: ${a.title} às ${a.time}`, ...n].slice(0, 8))
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const shiftMonth = (delta: number) => {
     const d = new Date(year, month + delta, 1)
@@ -320,32 +361,88 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addNotification(`Fatura ${card.name} paga com sucesso!`)
   }
 
-  const depositGoal = (goalId: string, amount: number) => {
+  const depositGoal = (goalId: string, amount: number, accountId?: string) => {
     if (amount <= 0) return
+    const goal = financialGoals.find((g) => g.id === goalId)
     setFinancialGoals((goals) =>
       goals.map((g) =>
         g.id === goalId ? { ...g, currentAmount: Math.min(g.targetAmount, g.currentAmount + amount) } : g,
       ),
     )
+    if (accountId) {
+      setAccounts((accs) =>
+        accs.map((a) => (a.id === accountId ? { ...a, balance: a.balance - amount } : a)),
+      )
+      setTransactions((list) => [
+        {
+          id: uid('tx'),
+          type: 'despesa',
+          category: 'Outros',
+          description: `Depósito na meta: ${goal?.title ?? ''}`,
+          amount,
+          date: todayISO(),
+          accountId,
+        },
+        ...list,
+      ])
+    }
     addNotification(`Depósito de R$ ${amount.toFixed(2)} na meta!`)
   }
 
-  const toggleHabit = (habitId: string) => {
-    const today = todayISO()
+  const toggleHabit = (habitId: string, dateISO?: string) => {
+    const date = dateISO ?? todayISO()
     setHabits((list) =>
       list.map((h) => {
         if (h.id !== habitId) return h
-        const done = h.completedDates.includes(today)
-        if (done) {
-          return {
-            ...h,
-            completedDates: h.completedDates.filter((d) => d !== today),
-            streak: Math.max(0, h.streak - 1),
-          }
-        }
-        return { ...h, completedDates: [...h.completedDates, today], streak: h.streak + 1 }
+        const has = h.completedDates.includes(date)
+        const completedDates = has
+          ? h.completedDates.filter((d) => d !== date)
+          : [...h.completedDates, date]
+        const next = { ...h, completedDates }
+        return { ...next, streak: computeStreak(next) }
       }),
     )
+  }
+
+  const generateRecurring = () => {
+    const d = new Date(year, month, 1)
+    const prev = new Date(year, month - 1, 1)
+    const prevRecurring = transactions.filter(
+      (t) => t.recurring && isSameMonth(t.date, prev.getFullYear(), prev.getMonth()),
+    )
+    if (prevRecurring.length === 0) {
+      addNotification('Nenhuma transação recorrente encontrada no mês anterior.')
+      return
+    }
+    const existingDescriptions = new Set(
+      transactions
+        .filter((t) => isSameMonth(t.date, d.getFullYear(), d.getMonth()))
+        .map((t) => t.description),
+    )
+    const created: Transaction[] = []
+    prevRecurring.forEach((t) => {
+      if (existingDescriptions.has(t.description)) return
+      const day = Math.min(
+        Number(t.date.slice(-2)) || 1,
+        new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(),
+      )
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      created.push({ ...t, id: uid('tx'), date })
+    })
+    if (created.length === 0) {
+      addNotification('Recorrentes deste mês já foram geradas.')
+      return
+    }
+    setTransactions((list) => [...created, ...list])
+    setAccounts((accs) =>
+      accs.map((a) => {
+        const delta = created
+          .filter((t) => t.accountId === a.id)
+          .reduce((s, t) => s + (t.type === 'receita' ? t.amount : -t.amount), 0)
+        return delta ? { ...a, balance: a.balance + delta } : a
+      }),
+    )
+    addNotification(`${created.length} transação(ões) recorrente(s) gerada(s) para o mês.`)
   }
 
   const replaceAllData = (data: Partial<PersistedData>) => {
@@ -366,6 +463,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubjects(next.subjects)
     setFlashcards(next.flashcards)
     setHealth(next.health)
+    setHealthHistory(next.healthHistory)
     setWheel(next.wheel)
     setGratitude(next.gratitude)
     setBooks(next.books)
@@ -403,6 +501,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSubjects,
       setFlashcards,
       setHealth,
+      setHealthHistory,
       setWheel,
       setGratitude,
       setBooks,
@@ -415,6 +514,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       payInvoice,
       depositGoal,
       toggleHabit,
+      generateRecurring,
       replaceAllData,
       resetAllData,
       exportData,

@@ -25,13 +25,13 @@ import { todayISO } from '../utils/format'
 const today = todayISO()
 
 export const initialAccounts: BankAccount[] = [
-  { id: 'acc_nu', bank: 'Nubank', name: 'Conta Nu', balance: 4250.8, color: '#820AD1', emoji: '💜' },
-  { id: 'acc_inter', bank: 'Inter', name: 'Conta Inter', balance: 1890.4, color: '#FF7A00', emoji: '🧡' },
-  { id: 'acc_caixa', bank: 'Caixa', name: 'Poupança Caixa', balance: 3200, color: '#005CA9', emoji: '💙' },
-  { id: 'acc_brad', bank: 'Bradesco', name: 'Conta Bradesco', balance: 980.25, color: '#CC092F', emoji: '❤️' },
-  { id: 'acc_itau', bank: 'Itaú', name: 'Conta Itaú', balance: 1560.9, color: '#EC7000', emoji: '🧡' },
-  { id: 'acc_c6', bank: 'C6 Bank', name: 'Conta C6', balance: 740.15, color: '#1A1A1A', emoji: '🖤' },
-  { id: 'acc_bb', bank: 'Banco do Brasil', name: 'Conta BB', balance: 2100, color: '#FDF200', emoji: '💛' },
+  { id: 'acc_nu', bank: 'nubank', name: 'Conta Nu', balance: 4250.8, color: '#820AD1', emoji: '💜' },
+  { id: 'acc_inter', bank: 'inter', name: 'Conta Inter', balance: 1890.4, color: '#FF7A00', emoji: '🧡' },
+  { id: 'acc_caixa', bank: 'caixa', name: 'Poupança Caixa', balance: 3200, color: '#005CA9', emoji: '💙' },
+  { id: 'acc_brad', bank: 'bradesco', name: 'Conta Bradesco', balance: 980.25, color: '#CC092F', emoji: '❤️' },
+  { id: 'acc_itau', bank: 'itau', name: 'Conta Itaú', balance: 1560.9, color: '#EC7000', emoji: '🧡' },
+  { id: 'acc_c6', bank: 'c6', name: 'Conta C6', balance: 740.15, color: '#1A1A1A', emoji: '🖤' },
+  { id: 'acc_bb', bank: 'bancodobrasil', name: 'Conta BB', balance: 2100, color: '#FDF200', emoji: '💛' },
 ]
 
 export const initialCards: CreditCard[] = [
@@ -208,9 +208,9 @@ export const initialLifeGoals: LifeGoal[] = [
 ]
 
 export const initialSubjects: Subject[] = [
-  { id: 'sub_math', name: 'Estatística Aplicada', progress: 72, nextExam: shiftDays(14), notes: 'Revisar regressão linear' },
-  { id: 'sub_eng', name: 'Inglês Avançado', progress: 55, nextExam: shiftDays(21), notes: 'Praticar listening' },
-  { id: 'sub_ux', name: 'UX Research', progress: 40, notes: 'Montar personas' },
+  { id: 'sub_math', name: 'Estatística Aplicada', progress: 72, nextExam: shiftDays(14), notes: 'Revisar regressão linear', school: 'immes' },
+  { id: 'sub_eng', name: 'Inglês Avançado', progress: 55, nextExam: shiftDays(21), notes: 'Praticar listening', school: 'immes' },
+  { id: 'sub_ux', name: 'UX Research', progress: 40, notes: 'Montar personas', school: 'univesp' },
 ]
 
 export const initialFlashcards: Flashcard[] = [
@@ -225,6 +225,7 @@ export const initialHealth: HealthLog = {
   sleepHours: 7.5,
   workout: 'HIIT 30min',
   meals: 'Café + almoço balanceado',
+  weightKg: 65,
 }
 
 export const initialWheel: WheelScore[] = [

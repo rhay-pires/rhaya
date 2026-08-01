@@ -7,6 +7,7 @@ import {
   Briefcase,
   CalendarDays,
   Check,
+  CheckSquare,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -45,7 +46,8 @@ import {
   type WidgetSize,
 } from '../store/SettingsStore'
 import type { ModuleId } from '../types'
-import { formatBRLHidden, isSameMonth, quoteOfDay, todayISO } from '../utils/format'
+import { formatBRLHidden, isSameMonth, quoteOfDay, todayISO, uid } from '../utils/format'
+import { isHabitDue } from '../utils/habits'
 import { Modal } from './ui'
 
 function weekAround(center: string) {
@@ -115,6 +117,7 @@ export function Dashboard() {
     month,
     toggleHabit,
     health,
+    setHealth,
     lifeGoals,
     subjects,
     books,
@@ -122,6 +125,11 @@ export function Dashboard() {
     content,
     financialGoals,
     subscriptions,
+    setTransactions,
+    setAccounts,
+    setAppointments,
+    setTasks,
+    addNotification,
   } = useApp()
   const { enabledModules, getModule } = useCustomization()
   const {
@@ -142,6 +150,7 @@ export function Dashboard() {
   const [addModule, setAddModule] = useState<DashboardWidgetId | ''>('')
   const [addModality, setAddModality] = useState('overview')
   const [addSize, setAddSize] = useState<WidgetSize>('square')
+  const [quickModal, setQuickModal] = useState<'despesa' | 'compromisso' | 'tarefa' | null>(null)
 
   const today = todayISO()
   const week = useMemo(() => weekAround(today), [today])
@@ -207,6 +216,17 @@ export function Dashboard() {
   const contentOpen = content.filter((c) => c.status !== 'publicado')
   const savedGoals = financialGoals.reduce((s, g) => s + g.currentAmount, 0)
   const moodEmoji = moodToday ? ['😞', '😕', '😐', '🙂', '😄'][moodToday.mood - 1] : '—'
+
+  const nextApptToday = appointments
+    .filter((a) => a.date === today && !a.done)
+    .sort((a, b) => a.time.localeCompare(b.time))[0]
+  const firstPendingHabitToday = habits.find(
+    (h) => isHabitDue(h, today) && !h.completedDates.includes(today),
+  )
+  const focusTask =
+    tasks.find((t) => t.status !== 'done' && t.dueDate < today) ??
+    tasks.find((t) => t.status !== 'done' && t.dueDate === today)
+  const isTaskOverdue = !!focusTask && focusTask.dueDate < today && focusTask.status !== 'done'
 
   const moduleColor = (id: DashboardWidgetId) => getModule(id)?.color ?? '#D1C4FF'
   const moduleLabel = (id: DashboardWidgetId) => getModule(id)?.label ?? id
@@ -905,6 +925,99 @@ export function Dashboard() {
         </div>
       </div>
 
+      <div className="mb-4">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Foco de hoje</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <button
+            type="button"
+            onClick={() => openModule('agenda')}
+            className="flex flex-col gap-1 rounded-[20px] border-2 border-[#1F2937] bg-white p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02]"
+          >
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <CalendarDays size={12} /> Próximo hoje
+            </span>
+            <span className="truncate text-sm font-bold text-[#1F2937]">
+              {nextApptToday ? `${nextApptToday.time} · ${nextApptToday.title}` : 'Nada agendado'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openModule('habitos')}
+            className="flex flex-col gap-1 rounded-[20px] border-2 border-[#1F2937] bg-white p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02]"
+          >
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <Zap size={12} /> Hábito pendente
+            </span>
+            <span className="truncate text-sm font-bold text-[#1F2937]">
+              {firstPendingHabitToday ? firstPendingHabitToday.name : 'Tudo feito 🎉'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openModule('trabalho')}
+            className={`flex flex-col gap-1 rounded-[20px] border-2 p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02] ${
+              isTaskOverdue ? 'border-rose-400 bg-rose-50' : 'border-[#1F2937] bg-white'
+            }`}
+          >
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <CheckSquare size={12} /> {isTaskOverdue ? 'Tarefa atrasada' : 'Tarefa de hoje'}
+            </span>
+            <span className="truncate text-sm font-bold text-[#1F2937]">
+              {focusTask ? focusTask.title : 'Sem pendências'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openModule('saude')}
+            className="flex flex-col gap-1 rounded-[20px] border-2 border-[#1F2937] bg-white p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02]"
+          >
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <Droplets size={12} /> Água
+            </span>
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-sm font-bold text-[#1F2937]">{waterPct}%</span>
+              <span
+                role="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setHealth((h) => ({ ...h, waterMl: h.waterMl + 250 }))
+                }}
+                className="rounded-full border-2 border-[#1F2937] bg-[#DFF3FF] px-2 py-0.5 text-[10px] font-bold text-[#1F2937]"
+              >
+                +250ml
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+        <button
+          type="button"
+          onClick={() => setQuickModal('despesa')}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-[#FDA4AF] px-3.5 py-2.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]"
+        >
+          <Plus size={14} /> Despesa
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuickModal('compromisso')}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-[#BAE6FD] px-3.5 py-2.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]"
+        >
+          <Plus size={14} /> Compromisso
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuickModal('tarefa')}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-[#A5F387] px-3.5 py-2.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]"
+        >
+          <Plus size={14} /> Tarefa
+        </button>
+      </div>
+
       <div className="space-y-4">
         {layout.map((group, gi) => {
           if (group.type === 'squares') {
@@ -1229,7 +1342,188 @@ export function Dashboard() {
           Pronto
         </button>
       </Modal>
+
+      <Modal open={quickModal === 'despesa'} title="Nova despesa" onClose={() => setQuickModal(null)}>
+        <QuickExpenseForm
+          accounts={accounts}
+          onSave={(tx) => {
+            const id = uid('tx')
+            setTransactions((list) => [{ ...tx, id }, ...list])
+            setAccounts((accs) =>
+              accs.map((a) => (a.id === tx.accountId ? { ...a, balance: a.balance - tx.amount } : a)),
+            )
+            addNotification(`Despesa registrada: ${tx.description}`)
+            setQuickModal(null)
+          }}
+        />
+      </Modal>
+
+      <Modal open={quickModal === 'compromisso'} title="Novo compromisso" onClose={() => setQuickModal(null)}>
+        <QuickApptForm
+          onSave={(appt) => {
+            setAppointments((list) => [{ ...appt, id: uid('appt') }, ...list])
+            setQuickModal(null)
+          }}
+        />
+      </Modal>
+
+      <Modal open={quickModal === 'tarefa'} title="Nova tarefa" onClose={() => setQuickModal(null)}>
+        <QuickTaskForm
+          onSave={(task) => {
+            setTasks((list) => [{ ...task, id: uid('task') }, ...list])
+            setQuickModal(null)
+          }}
+        />
+      </Modal>
     </div>
+  )
+}
+
+function QuickExpenseForm({
+  accounts,
+  onSave,
+}: {
+  accounts: { id: string; name: string }[]
+  onSave: (tx: Omit<import('../types').Transaction, 'id'>) => void
+}) {
+  const [description, setDescription] = useState('')
+  const [amount, setAmount] = useState('')
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  const [category, setCategory] = useState<import('../types').TransactionCategory>('Outros')
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!accountId || !amount) return
+        onSave({
+          type: 'despesa',
+          category,
+          description: description || 'Despesa rápida',
+          amount: Number(amount),
+          date: todayISO(),
+          accountId,
+        })
+      }}
+    >
+      <input
+        className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+        placeholder="Descrição"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+        placeholder="Valor"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        required
+      />
+      <select
+        className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+        value={category}
+        onChange={(e) => setCategory(e.target.value as import('../types').TransactionCategory)}
+      >
+        {['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Educação', 'Investimentos', 'Fatura', 'Outros'].map(
+          (c) => (
+            <option key={c}>{c}</option>
+          ),
+        )}
+      </select>
+      <select
+        className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+        value={accountId}
+        onChange={(e) => setAccountId(e.target.value)}
+        required
+      >
+        <option value="">Selecione a conta</option>
+        {accounts.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+      <button type="submit" className="w-full rounded-full bg-[#1F2937] py-3 text-sm font-bold text-white">
+        Salvar
+      </button>
+    </form>
+  )
+}
+
+function QuickApptForm({ onSave }: { onSave: (appt: Omit<import('../types').Appointment, 'id'>) => void }) {
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState(todayISO())
+  const [time, setTime] = useState('09:00')
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave({ title, date, time, priority: 'media', reminder: false })
+      }}
+    >
+      <input
+        className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+        placeholder="Título"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        required
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="date"
+          className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+        <input
+          type="time"
+          className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+        />
+      </div>
+      <button type="submit" className="w-full rounded-full bg-[#1F2937] py-3 text-sm font-bold text-white">
+        Salvar
+      </button>
+    </form>
+  )
+}
+
+function QuickTaskForm({ onSave }: { onSave: (task: Omit<import('../types').WorkTask, 'id'>) => void }) {
+  const [title, setTitle] = useState('')
+  const [dueDate, setDueDate] = useState(todayISO())
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave({ title, client: '', status: 'todo', priority: 'media', dueDate })
+      }}
+    >
+      <input
+        className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+        placeholder="Título da tarefa"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        required
+      />
+      <input
+        type="date"
+        className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm"
+        value={dueDate}
+        onChange={(e) => setDueDate(e.target.value)}
+      />
+      <button type="submit" className="w-full rounded-full bg-[#1F2937] py-3 text-sm font-bold text-white">
+        Salvar
+      </button>
+    </form>
   )
 }
 

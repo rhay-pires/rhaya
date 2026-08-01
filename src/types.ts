@@ -98,14 +98,8 @@ export type TransactionCategory =
   | 'Moradia'
   | 'Saúde'
 
-export type BankName =
-  | 'Nubank'
-  | 'Inter'
-  | 'Caixa'
-  | 'Bradesco'
-  | 'Itaú'
-  | 'C6 Bank'
-  | 'Banco do Brasil'
+/** Bank slug from bancos-brasil, e.g. nubank, itau, c6 */
+export type BankName = string
 
 export interface BankAccount {
   id: string
@@ -138,6 +132,7 @@ export interface Transaction {
   date: string
   accountId: string
   cardId?: string
+  recurring?: boolean
 }
 
 export interface FinancialGoal {
@@ -189,6 +184,8 @@ export interface Appointment {
   priority: Priority
   reminder: boolean
   location?: string
+  recurrence?: 'none' | 'weekly'
+  done?: boolean
 }
 
 export interface Habit {
@@ -198,6 +195,9 @@ export interface Habit {
   streak: number
   completedDates: string[]
   color: string
+  /** 0=Dom..6=Sáb; empty/undefined = todo dia */
+  weekdays?: number[]
+  iconKey?: string
 }
 
 export interface WorkTask {
@@ -216,6 +216,8 @@ export interface LifeGoal {
   area: 'Carreira' | 'Saúde' | 'Finanças' | 'Pessoal'
   progress: number
   steps: { id: string; title: string; done: boolean }[]
+  deadline?: string
+  archived?: boolean
 }
 
 export interface Subject {
@@ -224,6 +226,7 @@ export interface Subject {
   progress: number
   nextExam?: string
   notes: string
+  school?: 'immes' | 'univesp' | 'outro'
 }
 
 export interface Flashcard {
@@ -239,6 +242,7 @@ export interface HealthLog {
   sleepHours: number
   workout: string
   meals: string
+  weightKg?: number
 }
 
 export interface WheelScore {
@@ -268,6 +272,10 @@ export interface ContentItem {
   platform: 'Instagram' | 'YouTube' | 'TikTok' | 'Blog'
   status: 'ideia' | 'roteiro' | 'gravando' | 'editado' | 'publicado'
   publishDate: string
+  brief?: string
+  link?: string
+  views?: number
+  likes?: number
 }
 
 export interface MoodEntry {

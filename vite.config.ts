@@ -7,6 +7,15 @@ import tailwindcss from '@tailwindcss/vite'
 // (a raiz do repo redireciona para /docs enquanto o Source for "branch main")
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/rhaya/docs/' : '/',
+  resolve: {
+    // Pacote exporta entry Vue; usamos só o core JS puro (svgBanco / listarBancos)
+    alias: {
+      '@edusites/bancos-brasil': path.resolve(
+        import.meta.dirname,
+        'node_modules/@edusites/bancos-brasil/src/core.js',
+      ),
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
