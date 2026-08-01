@@ -1,4 +1,11 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import type {
   Appointment,
   BankAccount,
@@ -45,102 +52,199 @@ import {
   initialWheel,
 } from '../data/seed'
 import { todayISO, uid } from '../utils/format'
+import { loadJSON, saveJSON } from '../utils/storage'
 
-interface AppStore {
+const STORAGE_KEY = 'lifehub-data-v1'
+
+interface PersistedData {
   balanceVisible: boolean
+  notifications: string[]
+  accounts: BankAccount[]
+  cards: CreditCard[]
+  transactions: Transaction[]
+  financialGoals: FinancialGoal[]
+  limits: CategoryLimit[]
+  subscriptions: Subscription[]
+  decisions: PurchaseDecision[]
+  appointments: Appointment[]
+  habits: Habit[]
+  tasks: WorkTask[]
+  lifeGoals: LifeGoal[]
+  subjects: Subject[]
+  flashcards: Flashcard[]
+  health: HealthLog
+  wheel: WheelScore[]
+  gratitude: GratitudeEntry[]
+  books: Book[]
+  content: ContentItem[]
+  moods: MoodEntry[]
+  journal: JournalEntry[]
+}
+
+const defaults: PersistedData = {
+  balanceVisible: true,
+  notifications: [
+    'Fatura Nubank vence em 3 dias',
+    'Hábito “Beber 2L água” ainda pendente',
+    'Reunião às 10:00 — prepare a pauta',
+  ],
+  accounts: initialAccounts,
+  cards: initialCards,
+  transactions: initialTransactions,
+  financialGoals: initialGoals,
+  limits: initialLimits,
+  subscriptions: initialSubscriptions,
+  decisions: initialDecisions,
+  appointments: initialAppointments,
+  habits: initialHabits,
+  tasks: initialTasks,
+  lifeGoals: initialLifeGoals,
+  subjects: initialSubjects,
+  flashcards: initialFlashcards,
+  health: initialHealth,
+  wheel: initialWheel,
+  gratitude: initialGratitude,
+  books: initialBooks,
+  content: initialContent,
+  moods: initialMoods,
+  journal: initialJournal,
+}
+
+interface AppStore extends PersistedData {
   setBalanceVisible: (v: boolean) => void
   year: number
   month: number
   setYear: (y: number) => void
   setMonth: (m: number) => void
   shiftMonth: (delta: number) => void
-  notifications: string[]
   addNotification: (msg: string) => void
   dismissNotification: (i: number) => void
-
-  accounts: BankAccount[]
   setAccounts: React.Dispatch<React.SetStateAction<BankAccount[]>>
-  cards: CreditCard[]
   setCards: React.Dispatch<React.SetStateAction<CreditCard[]>>
-  transactions: Transaction[]
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>
-  financialGoals: FinancialGoal[]
   setFinancialGoals: React.Dispatch<React.SetStateAction<FinancialGoal[]>>
-  limits: CategoryLimit[]
   setLimits: React.Dispatch<React.SetStateAction<CategoryLimit[]>>
-  subscriptions: Subscription[]
   setSubscriptions: React.Dispatch<React.SetStateAction<Subscription[]>>
-  decisions: PurchaseDecision[]
   setDecisions: React.Dispatch<React.SetStateAction<PurchaseDecision[]>>
-
-  appointments: Appointment[]
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>
-  habits: Habit[]
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>
-  tasks: WorkTask[]
   setTasks: React.Dispatch<React.SetStateAction<WorkTask[]>>
-  lifeGoals: LifeGoal[]
   setLifeGoals: React.Dispatch<React.SetStateAction<LifeGoal[]>>
-  subjects: Subject[]
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>
-  flashcards: Flashcard[]
   setFlashcards: React.Dispatch<React.SetStateAction<Flashcard[]>>
-  health: HealthLog
   setHealth: React.Dispatch<React.SetStateAction<HealthLog>>
-  wheel: WheelScore[]
   setWheel: React.Dispatch<React.SetStateAction<WheelScore[]>>
-  gratitude: GratitudeEntry[]
   setGratitude: React.Dispatch<React.SetStateAction<GratitudeEntry[]>>
-  books: Book[]
   setBooks: React.Dispatch<React.SetStateAction<Book[]>>
-  content: ContentItem[]
   setContent: React.Dispatch<React.SetStateAction<ContentItem[]>>
-  moods: MoodEntry[]
   setMoods: React.Dispatch<React.SetStateAction<MoodEntry[]>>
-  journal: JournalEntry[]
   setJournal: React.Dispatch<React.SetStateAction<JournalEntry[]>>
   affirmations: string[]
-
   addTransaction: (tx: Omit<Transaction, 'id'>) => void
   deleteTransaction: (id: string) => void
   payInvoice: (cardId: string) => void
   depositGoal: (goalId: string, amount: number) => void
   toggleHabit: (habitId: string) => void
+  replaceAllData: (data: Partial<PersistedData>) => void
+  resetAllData: () => void
+  exportData: () => PersistedData
 }
 
 const AppContext = createContext<AppStore | null>(null)
 
+function loadPersisted(): PersistedData {
+  const saved = loadJSON<Partial<PersistedData>>(STORAGE_KEY, {})
+  const settings = loadJSON<{ hideBalancesByDefault?: boolean }>('lifehub-settings-v1', {})
+  const merged = { ...defaults, ...saved }
+  if (settings.hideBalancesByDefault && saved.balanceVisible === undefined) {
+    merged.balanceVisible = false
+  }
+  return merged
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const now = new Date()
-  const [balanceVisible, setBalanceVisible] = useState(true)
+  const initial = loadPersisted()
+
+  const [balanceVisible, setBalanceVisible] = useState(initial.balanceVisible)
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
-  const [notifications, setNotifications] = useState<string[]>([
-    'Fatura Nubank vence em 3 dias',
-    'Hábito “Beber 2L água” ainda pendente',
-    'Reunião às 10:00 — prepare a pauta',
-  ])
+  const [notifications, setNotifications] = useState(initial.notifications)
+  const [accounts, setAccounts] = useState(initial.accounts)
+  const [cards, setCards] = useState(initial.cards)
+  const [transactions, setTransactions] = useState(initial.transactions)
+  const [financialGoals, setFinancialGoals] = useState(initial.financialGoals)
+  const [limits, setLimits] = useState(initial.limits)
+  const [subscriptions, setSubscriptions] = useState(initial.subscriptions)
+  const [decisions, setDecisions] = useState(initial.decisions)
+  const [appointments, setAppointments] = useState(initial.appointments)
+  const [habits, setHabits] = useState(initial.habits)
+  const [tasks, setTasks] = useState(initial.tasks)
+  const [lifeGoals, setLifeGoals] = useState(initial.lifeGoals)
+  const [subjects, setSubjects] = useState(initial.subjects)
+  const [flashcards, setFlashcards] = useState(initial.flashcards)
+  const [health, setHealth] = useState(initial.health)
+  const [wheel, setWheel] = useState(initial.wheel)
+  const [gratitude, setGratitude] = useState(initial.gratitude)
+  const [books, setBooks] = useState(initial.books)
+  const [content, setContent] = useState(initial.content)
+  const [moods, setMoods] = useState(initial.moods)
+  const [journal, setJournal] = useState(initial.journal)
 
-  const [accounts, setAccounts] = useState(initialAccounts)
-  const [cards, setCards] = useState(initialCards)
-  const [transactions, setTransactions] = useState(initialTransactions)
-  const [financialGoals, setFinancialGoals] = useState(initialGoals)
-  const [limits, setLimits] = useState(initialLimits)
-  const [subscriptions, setSubscriptions] = useState(initialSubscriptions)
-  const [decisions, setDecisions] = useState(initialDecisions)
-  const [appointments, setAppointments] = useState(initialAppointments)
-  const [habits, setHabits] = useState(initialHabits)
-  const [tasks, setTasks] = useState(initialTasks)
-  const [lifeGoals, setLifeGoals] = useState(initialLifeGoals)
-  const [subjects, setSubjects] = useState(initialSubjects)
-  const [flashcards, setFlashcards] = useState(initialFlashcards)
-  const [health, setHealth] = useState(initialHealth)
-  const [wheel, setWheel] = useState(initialWheel)
-  const [gratitude, setGratitude] = useState(initialGratitude)
-  const [books, setBooks] = useState(initialBooks)
-  const [content, setContent] = useState(initialContent)
-  const [moods, setMoods] = useState(initialMoods)
-  const [journal, setJournal] = useState(initialJournal)
+  const persisted: PersistedData = useMemo(
+    () => ({
+      balanceVisible,
+      notifications,
+      accounts,
+      cards,
+      transactions,
+      financialGoals,
+      limits,
+      subscriptions,
+      decisions,
+      appointments,
+      habits,
+      tasks,
+      lifeGoals,
+      subjects,
+      flashcards,
+      health,
+      wheel,
+      gratitude,
+      books,
+      content,
+      moods,
+      journal,
+    }),
+    [
+      balanceVisible,
+      notifications,
+      accounts,
+      cards,
+      transactions,
+      financialGoals,
+      limits,
+      subscriptions,
+      decisions,
+      appointments,
+      habits,
+      tasks,
+      lifeGoals,
+      subjects,
+      flashcards,
+      health,
+      wheel,
+      gratitude,
+      books,
+      content,
+      moods,
+      journal,
+    ],
+  )
+
+  useEffect(() => {
+    saveJSON(STORAGE_KEY, persisted)
+  }, [persisted])
 
   const shiftMonth = (delta: number) => {
     const d = new Date(year, month + delta, 1)
@@ -233,64 +337,77 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (h.id !== habitId) return h
         const done = h.completedDates.includes(today)
         if (done) {
-          return { ...h, completedDates: h.completedDates.filter((d) => d !== today), streak: Math.max(0, h.streak - 1) }
+          return {
+            ...h,
+            completedDates: h.completedDates.filter((d) => d !== today),
+            streak: Math.max(0, h.streak - 1),
+          }
         }
         return { ...h, completedDates: [...h.completedDates, today], streak: h.streak + 1 }
       }),
     )
   }
 
+  const replaceAllData = (data: Partial<PersistedData>) => {
+    const next = { ...defaults, ...data }
+    setBalanceVisible(next.balanceVisible)
+    setNotifications(next.notifications)
+    setAccounts(next.accounts)
+    setCards(next.cards)
+    setTransactions(next.transactions)
+    setFinancialGoals(next.financialGoals)
+    setLimits(next.limits)
+    setSubscriptions(next.subscriptions)
+    setDecisions(next.decisions)
+    setAppointments(next.appointments)
+    setHabits(next.habits)
+    setTasks(next.tasks)
+    setLifeGoals(next.lifeGoals)
+    setSubjects(next.subjects)
+    setFlashcards(next.flashcards)
+    setHealth(next.health)
+    setWheel(next.wheel)
+    setGratitude(next.gratitude)
+    setBooks(next.books)
+    setContent(next.content)
+    setMoods(next.moods)
+    setJournal(next.journal)
+  }
+
+  const resetAllData = () => replaceAllData(defaults)
+
+  const exportData = () => persisted
+
   const value = useMemo(
     () => ({
-      balanceVisible,
+      ...persisted,
       setBalanceVisible,
       year,
       month,
       setYear,
       setMonth,
       shiftMonth,
-      notifications,
       addNotification,
       dismissNotification,
-      accounts,
       setAccounts,
-      cards,
       setCards,
-      transactions,
       setTransactions,
-      financialGoals,
       setFinancialGoals,
-      limits,
       setLimits,
-      subscriptions,
       setSubscriptions,
-      decisions,
       setDecisions,
-      appointments,
       setAppointments,
-      habits,
       setHabits,
-      tasks,
       setTasks,
-      lifeGoals,
       setLifeGoals,
-      subjects,
       setSubjects,
-      flashcards,
       setFlashcards,
-      health,
       setHealth,
-      wheel,
       setWheel,
-      gratitude,
       setGratitude,
-      books,
       setBooks,
-      content,
       setContent,
-      moods,
       setMoods,
-      journal,
       setJournal,
       affirmations,
       addTransaction,
@@ -298,33 +415,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       payInvoice,
       depositGoal,
       toggleHabit,
+      replaceAllData,
+      resetAllData,
+      exportData,
     }),
-    [
-      balanceVisible,
-      year,
-      month,
-      notifications,
-      accounts,
-      cards,
-      transactions,
-      financialGoals,
-      limits,
-      subscriptions,
-      decisions,
-      appointments,
-      habits,
-      tasks,
-      lifeGoals,
-      subjects,
-      flashcards,
-      health,
-      wheel,
-      gratitude,
-      books,
-      content,
-      moods,
-      journal,
-    ],
+    [persisted, year, month],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
@@ -335,3 +430,5 @@ export function useApp() {
   if (!ctx) throw new Error('useApp must be used within AppProvider')
   return ctx
 }
+
+export type { PersistedData }

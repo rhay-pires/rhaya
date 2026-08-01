@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useSettings } from '../store/SettingsStore'
 
 interface ModalProps {
   open: boolean
@@ -50,7 +51,7 @@ export function Modal({ open, title, onClose, children, wide }: ModalProps) {
 export function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="mb-4">
-      <h2 className="text-xl font-bold text-slate-800 md:text-2xl">{title}</h2>
+      <h2 className="text-xl font-bold text-[var(--app-fg)] md:text-2xl">{title}</h2>
       {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
     </div>
   )
@@ -60,33 +61,79 @@ export function PillTabs<T extends string>({
   tabs,
   active,
   onChange,
+  accent,
 }: {
   tabs: { id: T; label: string }[]
   active: T
   onChange: (id: T) => void
+  accent?: string
 }) {
+  const { settings } = useSettings()
+  const style = settings.visualStyle
+  const accentColor = accent ?? '#6C4BFF'
+
   return (
-    <div className="mb-5 flex flex-wrap gap-2 rounded-[24px] bg-white/70 p-2 border border-gray-100">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02] ${
-            active === tab.id
-              ? 'bg-gradient-to-r from-[#6C4BFF] to-[#3B82F6] text-white shadow-md'
-              : 'bg-transparent text-slate-600 hover:bg-violet-50'
-          }`}
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div
+      className={
+        style === 'glass'
+          ? 'glass-panel mb-5 flex flex-wrap gap-2 rounded-[24px] p-2'
+          : style === 'minimal'
+            ? 'soft-panel mb-5 flex flex-wrap gap-2 rounded-[24px] p-2'
+            : 'mb-5 flex flex-wrap gap-2 rounded-[24px] border-2 border-[#1F2937] bg-white p-2 shadow-[3px_3px_0_#1F2937]'
+      }
+    >
+      {tabs.map((tab) => {
+        const isActive = active === tab.id
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition hover:scale-[1.02] ${
+              isActive
+                ? style === 'minimal'
+                  ? 'text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)]'
+                  : style === 'glass'
+                    ? 'border border-white/50 text-[#0f172a] shadow-[0_8px_24px_rgba(99,102,241,0.18)]'
+                    : 'border-2 border-[#1F2937] text-[#1F2937] shadow-[2px_2px_0_#1F2937]'
+                : style === 'minimal'
+                  ? 'text-slate-500 hover:bg-slate-50'
+                  : style === 'glass'
+                    ? 'text-slate-600 hover:bg-white/35'
+                    : 'text-slate-600 hover:bg-slate-50'
+            }`}
+            style={
+              isActive
+                ? style === 'minimal'
+                  ? { background: accentColor }
+                  : style === 'glass'
+                    ? {
+                        background: `linear-gradient(135deg, ${accentColor}99, rgba(255,255,255,0.65))`,
+                      }
+                    : { background: accentColor }
+                : undefined
+            }
+          >
+            {tab.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
 
 export function EmptyState({ text }: { text: string }) {
+  const { settings } = useSettings()
+  const style = settings.visualStyle
   return (
-    <div className="rounded-[24px] border border-dashed border-violet-200 bg-violet-50/40 px-4 py-8 text-center text-sm text-slate-500">
+    <div
+      className={
+        style === 'minimal'
+          ? 'rounded-[24px] border border-dashed border-[var(--app-border)] bg-[var(--app-soft)] px-4 py-8 text-center text-sm text-slate-500'
+          : style === 'glass'
+            ? 'rounded-[24px] border border-dashed border-white/40 bg-white/30 px-4 py-8 text-center text-sm text-slate-500 backdrop-blur'
+            : 'rounded-[24px] border-2 border-dashed border-[#1F2937]/25 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500'
+      }
+    >
       {text}
     </div>
   )

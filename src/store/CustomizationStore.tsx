@@ -39,6 +39,8 @@ interface CustomizationStore {
   removeModule: (id: ModuleId) => void
   updateCustomData: (id: string, data: Partial<CustomModuleData>) => void
   resetCustomization: () => void
+  exportCustomization: () => StoredState
+  importCustomization: (data: Partial<StoredState>) => void
 }
 
 const CustomizationContext = createContext<CustomizationStore | null>(null)
@@ -160,6 +162,13 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
     setCustomData({})
   }
 
+  const exportCustomization = () => ({ modules, customData })
+
+  const importCustomization = (data: Partial<StoredState>) => {
+    if (data.modules) setModules(data.modules)
+    if (data.customData) setCustomData(data.customData)
+  }
+
   const value = useMemo(
     () => ({
       modules,
@@ -176,6 +185,8 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
       removeModule,
       updateCustomData,
       resetCustomization,
+      exportCustomization,
+      importCustomization,
     }),
     [modules, enabledModules, customData, getModule, updateModule],
   )

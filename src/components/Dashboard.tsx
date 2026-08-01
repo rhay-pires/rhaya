@@ -1,20 +1,52 @@
-import { useMemo } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import {
-  Bell,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  BookOpen,
   Briefcase,
   CalendarDays,
   Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Clapperboard,
+  BarChart3,
+  CreditCard,
   Droplets,
   Flame,
+  HeartPulse,
+  LayoutGrid,
+  Moon,
+  Plus,
+  Repeat,
+  Settings2,
+  Smile,
   Sparkles,
+  Square,
   Target,
+  Trash2,
   Wallet,
   Zap,
+  type LucideIcon,
 } from 'lucide-react'
 import { useApp } from '../store/AppStore'
 import { useCustomization } from '../store/CustomizationStore'
+import { useNavigation } from '../store/NavigationContext'
+import {
+  ALL_DASHBOARD_WIDGETS,
+  DASHBOARD_PRESETS,
+  modalitiesFor,
+  modalityLabel,
+  useSettings,
+  type DashboardPresetId,
+  type DashboardWidgetConfig,
+  type DashboardWidgetId,
+  type WidgetSize,
+} from '../store/SettingsStore'
+import type { ModuleId } from '../types'
 import { formatBRLHidden, isSameMonth, quoteOfDay, todayISO } from '../utils/format'
+import { Modal } from './ui'
 
 function weekAround(center: string) {
   const base = new Date(center + 'T12:00:00')
@@ -27,12 +59,53 @@ function weekAround(center: string) {
   })
 }
 
-const HABIT_COLORS = ['#D1C4FF', '#FFEA5D', '#70CFFF', '#A5F387', '#F9A8D4', '#FDBA74']
-const EVENT_COLORS = ['#FFEA5D', '#70CFFF', '#A5F387', '#D1C4FF', '#FDA4AF']
+type LayoutGroup =
+  | { type: 'squares'; items: DashboardWidgetConfig[] }
+  | { type: 'card'; item: DashboardWidgetConfig }
+
+const MAX_SQUARES_PER_ROW = 4
+
+function flushSquares(groups: LayoutGroup[], squares: DashboardWidgetConfig[]) {
+  for (let i = 0; i < squares.length; i += MAX_SQUARES_PER_ROW) {
+    groups.push({ type: 'squares', items: squares.slice(i, i + MAX_SQUARES_PER_ROW) })
+  }
+}
+
+function groupWidgets(widgets: DashboardWidgetConfig[]): LayoutGroup[] {
+  const groups: LayoutGroup[] = []
+  let squares: DashboardWidgetConfig[] = []
+  for (const w of widgets) {
+    if (w.size === 'square') {
+      squares.push(w)
+    } else {
+      if (squares.length) {
+        flushSquares(groups, squares)
+        squares = []
+      }
+      groups.push({ type: 'card', item: w })
+    }
+  }
+  if (squares.length) flushSquares(groups, squares)
+  return groups
+}
+
+const MODULE_ICONS: Record<DashboardWidgetId, LucideIcon> = {
+  financas: Wallet,
+  agenda: CalendarDays,
+  habitos: Zap,
+  trabalho: Briefcase,
+  metas: Target,
+  estudos: BookOpen,
+  saude: HeartPulse,
+  devpessoal: Sparkles,
+  estatisticas: BarChart3,
+  conteudo: Clapperboard,
+}
 
 export function Dashboard() {
   const {
     accounts,
+    cards,
     transactions,
     habits,
     tasks,
@@ -42,69 +115,747 @@ export function Dashboard() {
     month,
     toggleHabit,
     health,
+    lifeGoals,
+    subjects,
+    books,
+    moods,
+    content,
+    financialGoals,
+    subscriptions,
   } = useApp()
-  const { getModule } = useCustomization()
-  const theme = getModule('dashboard')?.color ?? '#D1C4FF'
+  const { enabledModules, getModule } = useCustomization()
+  const {
+    settings,
+    addDashboardWidget,
+    removeDashboardWidget,
+    updateDashboardWidget,
+    moveDashboardWidget,
+    applyDashboardPreset,
+  } = useSettings()
+  const isGlass = settings.visualStyle === 'glass'
+  const isMinimal = settings.visualStyle === 'minimal'
+  const isSoft = isGlass || isMinimal
+  const { navigate } = useNavigation()
+  const [editOpen, setEditOpen] = useState(false)
+  const [widgetTab, setWidgetTab] = useState<'padrao' | 'personalizar'>('padrao')
+  const [activePreset, setActivePreset] = useState<DashboardPresetId | null>('padrao')
+  const [addModule, setAddModule] = useState<DashboardWidgetId | ''>('')
+  const [addModality, setAddModality] = useState('overview')
+  const [addSize, setAddSize] = useState<WidgetSize>('square')
 
   const today = todayISO()
   const week = useMemo(() => weekAround(today), [today])
+  const theme = getModule('dashboard')?.color ?? '#D1C4FF'
+
+  const surfaceStyle = (color: string): CSSProperties =>
+    isGlass
+      ? {
+          background: `linear-gradient(160deg, ${color} 0%, color-mix(in srgb, ${color} 72%, white) 100%)`,
+          ['--accent' as string]: color,
+        }
+      : isMinimal
+        ? {
+            background: `color-mix(in srgb, ${color} 82%, white)`,
+            ['--accent' as string]: color,
+          }
+        : { background: color }
+
+  const iconBadgeStyle = (color: string): CSSProperties => ({ background: color })
+
+  const activeWidgets = useMemo(() => {
+    const enabledIds = new Set(enabledModules.map((m) => m.id))
+    return settings.dashboardWidgets.filter((w) => enabledIds.has(w.moduleId))
+  }, [settings.dashboardWidgets, enabledModules])
+
+  const layout = useMemo(() => groupWidgets(activeWidgets), [activeWidgets])
+
+  const availableModules = useMemo(
+    () => ALL_DASHBOARD_WIDGETS.filter((w) => enabledModules.some((m) => m.id === w.id)),
+    [enabledModules],
+  )
+
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0)
   const monthTx = transactions.filter((t) => isSameMonth(t.date, year, month))
   const receitas = monthTx.filter((t) => t.type === 'receita').reduce((s, t) => s + t.amount, 0)
   const despesas = monthTx.filter((t) => t.type === 'despesa').reduce((s, t) => s + t.amount, 0)
+  const invoiceTotal = cards.reduce((s, c) => s + c.invoiceAmount, 0)
+  const subMonthly = subscriptions
+    .filter((s) => !s.paused)
+    .reduce((s, x) => s + x.amount, 0)
   const habitsDone = habits.filter((h) => h.completedDates.includes(today)).length
   const habitPct = habits.length ? Math.round((habitsDone / habits.length) * 100) : 0
+  const bestStreak = Math.max(0, ...habits.map((h) => h.streak), 0)
+  const pendingHabits = habits.filter((h) => !h.completedDates.includes(today))
   const pendingTasks = tasks.filter((t) => t.status !== 'done').length
-  const doneTasks = tasks.filter((t) => t.status === 'done').length
-  const todayAppts = appointments
-    .filter((a) => a.date === today)
-    .sort((a, b) => a.time.localeCompare(b.time))
+  const todo = tasks.filter((t) => t.status === 'todo').length
+  const doing = tasks.filter((t) => t.status === 'doing').length
+  const done = tasks.filter((t) => t.status === 'done').length
   const upcoming = appointments
     .filter((a) => a.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
-    .slice(0, 4)
-  const bestStreak = Math.max(0, ...habits.map((h) => h.streak))
-  const waterPct = Math.min(100, Math.round((health.waterMl / 2000) * 100))
-  const quote = quoteOfDay()
+    .slice(0, 3)
+  const todayAppts = appointments.filter((a) => a.date === today)
+  const avgLifeGoal = lifeGoals.length
+    ? Math.round(lifeGoals.reduce((s, g) => s + g.progress, 0) / lifeGoals.length)
+    : 0
+  const avgSubject = subjects.length
+    ? Math.round(subjects.reduce((s, x) => s + x.progress, 0) / subjects.length)
+    : 0
+  const waterPct = Math.min(100, Math.round((health.waterMl / settings.waterGoalMl) * 100))
+  const reading = books.filter((b) => b.status === 'lendo')[0]
+  const moodToday = moods.find((m) => m.date === today)
+  const contentOpen = content.filter((c) => c.status !== 'publicado')
+  const savedGoals = financialGoals.reduce((s, g) => s + g.currentAmount, 0)
+  const moodEmoji = moodToday ? ['😞', '😕', '😐', '🙂', '😄'][moodToday.mood - 1] : '—'
 
-  const metrics = [
-    {
-      label: 'Saldo',
-      value: formatBRLHidden(totalBalance, balanceVisible),
-      sub: `+${formatBRLHidden(receitas - despesas, balanceVisible)} mês`,
-      color: '#A5F387',
-      fill: Math.min(100, Math.max(12, 55)),
-      Icon: Wallet,
-    },
-    {
-      label: 'Hábitos',
-      value: `${habitsDone}/${habits.length}`,
-      sub: `${habitPct}% hoje`,
-      color: '#FFEA5D',
-      fill: habitPct || 8,
-      Icon: Zap,
-    },
-    {
-      label: 'Tarefas',
-      value: `${pendingTasks}`,
-      sub: `${doneTasks} feitas`,
-      color: '#70CFFF',
-      fill: tasks.length ? Math.round((doneTasks / tasks.length) * 100) : 8,
-      Icon: Briefcase,
-    },
-    {
-      label: 'Água',
-      value: `${health.waterMl}`,
-      sub: 'ml / 2L',
-      color: '#D1C4FF',
-      fill: waterPct || 8,
-      Icon: Droplets,
-    },
-  ]
+  const moduleColor = (id: DashboardWidgetId) => getModule(id)?.color ?? '#D1C4FF'
+  const moduleLabel = (id: DashboardWidgetId) => getModule(id)?.label ?? id
+  const openModule = (id: ModuleId) => navigate(id)
+
+  function squareData(w: DashboardWidgetConfig): {
+    Icon: LucideIcon
+    label: string
+    value: string
+  } {
+    const { moduleId, modality } = w
+    const Icon = MODULE_ICONS[moduleId]
+    const label = modalityLabel(moduleId, modality)
+
+    if (moduleId === 'financas') {
+      if (modality === 'saldo')
+        return { Icon: Wallet, label, value: formatBRLHidden(totalBalance, balanceVisible) }
+      if (modality === 'receitas')
+        return { Icon: ArrowUpCircle, label, value: formatBRLHidden(receitas, balanceVisible) }
+      if (modality === 'despesas')
+        return { Icon: ArrowDownCircle, label, value: formatBRLHidden(despesas, balanceVisible) }
+      if (modality === 'faturas')
+        return { Icon: CreditCard, label, value: formatBRLHidden(invoiceTotal, balanceVisible) }
+      if (modality === 'metas')
+        return { Icon: Target, label, value: formatBRLHidden(savedGoals, balanceVisible) }
+      if (modality === 'assinaturas')
+        return { Icon: Repeat, label, value: formatBRLHidden(subMonthly, balanceVisible) }
+      return { Icon, label: 'Finanças', value: formatBRLHidden(totalBalance, balanceVisible) }
+    }
+    if (moduleId === 'agenda') {
+      if (modality === 'hoje') return { Icon, label, value: String(todayAppts.length) }
+      if (modality === 'semana')
+        return {
+          Icon,
+          label,
+          value: String(appointments.filter((a) => week.includes(a.date)).length),
+        }
+      return { Icon, label, value: String(upcoming.length) }
+    }
+    if (moduleId === 'habitos') {
+      if (modality === 'streak') return { Icon: Flame, label, value: `${bestStreak}d` }
+      if (modality === 'pendentes') return { Icon, label, value: String(pendingHabits.length) }
+      return { Icon, label, value: `${habitPct}%` }
+    }
+    if (moduleId === 'trabalho') {
+      if (modality === 'todo') return { Icon, label, value: String(todo) }
+      if (modality === 'doing') return { Icon, label, value: String(doing) }
+      if (modality === 'done') return { Icon, label, value: String(done) }
+      if (modality === 'pendentes') return { Icon, label, value: String(pendingTasks) }
+      return { Icon, label, value: String(pendingTasks) }
+    }
+    if (moduleId === 'metas') return { Icon, label, value: `${avgLifeGoal}%` }
+    if (moduleId === 'estudos') return { Icon, label, value: `${avgSubject}%` }
+    if (moduleId === 'saude') {
+      if (modality === 'agua') return { Icon: Droplets, label, value: `${health.waterMl}ml` }
+      if (modality === 'sono') return { Icon: Moon, label, value: `${health.sleepHours}h` }
+      if (modality === 'treino') return { Icon, label, value: health.workout || '—' }
+      return { Icon, label, value: `${waterPct}%` }
+    }
+    if (moduleId === 'devpessoal') {
+      if (modality === 'humor')
+        return {
+          Icon: Smile,
+          label,
+          value: moodToday ? `${moodToday.mood}/5` : '—',
+        }
+      if (modality === 'citacao') return { Icon: Sparkles, label, value: 'Hoje' }
+      if (modality === 'leitura')
+        return {
+          Icon: BookOpen,
+          label,
+          value: reading ? reading.title.split(' ')[0].slice(0, 8) : '—',
+        }
+      return {
+        Icon: Smile,
+        label: 'Humor',
+        value: moodToday ? `${moodToday.mood}/5` : '—',
+      }
+    }
+    if (moduleId === 'estatisticas') {
+      if (modality === 'habitos') return { Icon: Zap, label, value: `${habitPct}%` }
+      if (modality === 'metas') return { Icon: Target, label, value: `${avgLifeGoal}%` }
+      if (modality === 'estudos') return { Icon: BookOpen, label, value: `${avgSubject}%` }
+      return { Icon, label, value: `${habitPct}%` }
+    }
+    if (moduleId === 'conteudo') return { Icon, label, value: String(contentOpen.length) }
+    return { Icon, label, value: '—' }
+  }
+
+  function renderCard(w: DashboardWidgetConfig) {
+    const color = moduleColor(w.moduleId)
+    const label = moduleLabel(w.moduleId)
+    const mod = w.modality
+    const Icon = MODULE_ICONS[w.moduleId]
+    const modTitle = modalityLabel(w.moduleId, mod)
+
+    // Specific modality cards that aren't full overview
+    if (w.moduleId === 'financas' && mod !== 'overview') {
+      const data = squareData(w)
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('financas')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={data.Icon} label={modTitle} />
+          <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'financas') {
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('financas')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={Wallet} label={label} subtitle="Saldo e fluxo do mês" />
+          <div className="grid grid-cols-2 gap-2 p-4 pt-0 sm:grid-cols-3">
+            <StatPill title="Saldo" value={formatBRLHidden(totalBalance, balanceVisible)} />
+            <StatPill title="Receitas" value={formatBRLHidden(receitas, balanceVisible)} />
+            <StatPill title="Despesas" value={formatBRLHidden(despesas, balanceVisible)} />
+          </div>
+          <p className="px-4 pb-4 text-xs font-medium text-[#1F2937]/65">
+            Metas: {formatBRLHidden(savedGoals, balanceVisible)} guardados
+          </p>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'agenda') {
+      const showWeek = mod === 'overview' || mod === 'semana'
+      const showList = mod === 'overview' || mod === 'proximos' || mod === 'hoje'
+      const list = mod === 'hoje' ? todayAppts.slice(0, 3) : upcoming
+      const title = mod === 'overview' ? label : modTitle
+      const subtitle =
+        mod === 'hoje'
+          ? `${todayAppts.length} compromisso${todayAppts.length === 1 ? '' : 's'} hoje`
+          : `${upcoming.length} próximo${upcoming.length === 1 ? '' : 's'}`
+
+      return (
+        <div
+          className="overflow-hidden rounded-[28px] border-2 border-[#1F2937] shadow-[4px_4px_0_#1F2937] ink-surface"
+          style={surfaceStyle(color)}
+        >
+          <button type="button" onClick={() => openModule('agenda')} className="w-full text-left">
+            <WidgetHeader Icon={CalendarDays} label={title} subtitle={subtitle} />
+          </button>
+
+          {showWeek && (
+            <button
+              type="button"
+              onClick={() => openModule('agenda')}
+              className="w-full px-3 pb-3"
+            >
+              <div className="flex justify-between gap-1 rounded-[22px] border-2 border-[#1F2937]/15 bg-white/70 p-2">
+                {week.map((date) => {
+                  const d = new Date(date + 'T12:00:00')
+                  const active = date === today
+                  const has = appointments.some((a) => a.date === date)
+                  const weekday = d
+                    .toLocaleDateString('pt-BR', { weekday: 'short' })
+                    .replace('.', '')
+                    .slice(0, 3)
+                  return (
+                    <div
+                      key={date}
+                      className={`flex flex-1 flex-col items-center gap-1 rounded-[16px] px-0.5 py-2 transition ${
+                        active
+                          ? 'border-2 border-[#1F2937] shadow-[2px_2px_0_#1F2937]'
+                          : 'bg-transparent'
+                      }`}
+                      style={active ? { background: color } : undefined}
+                    >
+                      <span
+                        className={`text-[9px] font-bold uppercase tracking-wide ${
+                          active ? 'text-[#1F2937]/70' : 'text-slate-400'
+                        }`}
+                      >
+                        {weekday}
+                      </span>
+                      <span
+                        className={`text-sm font-bold ${
+                          active ? 'text-[#1F2937]' : 'text-slate-700'
+                        }`}
+                      >
+                        {d.getDate()}
+                      </span>
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          has ? (active ? 'bg-[#1F2937]' : 'bg-[#3B82F6]') : 'bg-transparent'
+                        }`}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </button>
+          )}
+
+          {showList && (
+            <div className="space-y-2 px-3 pb-4">
+              {list.length === 0 ? (
+                <p className="rounded-[18px] border-2 border-dashed border-[#1F2937]/20 bg-white/50 py-4 text-center text-sm text-[#1F2937]/50">
+                  Agenda livre por agora
+                </p>
+              ) : (
+                list.map((a) => {
+                  const when = new Date(a.date + 'T12:00:00')
+                  const dayLabel =
+                    a.date === today
+                      ? 'Hoje'
+                      : when.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' })
+                  const priorityTone =
+                    a.priority === 'alta'
+                      ? 'bg-[#FDA4AF]'
+                      : a.priority === 'media'
+                        ? 'bg-[#FFEA5D]'
+                        : 'bg-[#A5F387]'
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => openModule('agenda')}
+                      className="flex w-full items-center gap-3 rounded-[18px] border-2 border-[#1F2937]/15 bg-white/75 px-2.5 py-2 text-left transition hover:bg-white"
+                    >
+                      <span className="flex min-w-[3.25rem] flex-col items-center justify-center rounded-[14px] border-2 border-[#1F2937]/10 bg-white px-2 py-1.5">
+                        <span className="text-[9px] font-bold uppercase text-[#1F2937]/55">
+                          {dayLabel}
+                        </span>
+                        <span className="text-sm font-bold tabular-nums text-[#1F2937]">
+                          {a.time}
+                        </span>
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-[#1F2937]">{a.title}</p>
+                        <span
+                          className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold capitalize text-[#1F2937] ${priorityTone}`}
+                        >
+                          {a.priority}
+                        </span>
+                      </div>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[#1F2937]/15 bg-white text-[#1F2937]">
+                        <ChevronRight size={14} strokeWidth={2.5} />
+                      </span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (w.moduleId === 'habitos') {
+      if (mod !== 'overview' && mod !== 'pendentes') {
+        const data = squareData(w)
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('habitos')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
+          </button>
+        )
+      }
+
+      const list = mod === 'pendentes' ? pendingHabits.slice(0, 4) : habits.slice(0, 4)
+      return (
+        <div
+          className="overflow-hidden rounded-[28px] border-2 border-[#1F2937] shadow-[4px_4px_0_#1F2937] ink-surface"
+          style={surfaceStyle(color)}
+        >
+          <button type="button" onClick={() => openModule('habitos')} className="w-full text-left">
+            <WidgetHeader
+              Icon={Zap}
+              label={mod === 'overview' ? label : modTitle}
+              subtitle={`${habitsDone}/${habits.length} hoje · ${habitPct}%`}
+              trailing={
+                <span className="flex items-center gap-1 rounded-full border-2 border-[#1F2937] bg-[#FFF7ED] px-2 py-1 text-xs font-bold text-orange-600">
+                  <Flame size={12} /> {bestStreak}
+                </span>
+              }
+            />
+          </button>
+          <div className="space-y-2 px-3 pb-4">
+            {list.map((h) => {
+              const doneHabit = h.completedDates.includes(today)
+              return (
+                <button
+                  key={h.id}
+                  type="button"
+                  onClick={() => toggleHabit(h.id)}
+                  className={`flex w-full items-center gap-3 rounded-[18px] border-2 border-[#1F2937]/15 bg-white/75 px-3 py-2.5 text-left ${
+                    doneHabit ? 'opacity-70' : ''
+                  }`}
+                >
+                  <span
+                    className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#1F2937] ${
+                      doneHabit ? 'bg-[#A5F387]' : 'bg-white'
+                    }`}
+                  >
+                    {doneHabit && <Check size={14} strokeWidth={3} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`truncate text-sm font-bold text-[#1F2937] ${
+                        doneHabit ? 'line-through' : ''
+                      }`}
+                    >
+                      {h.name}
+                    </p>
+                    <p className="text-[11px] capitalize text-[#1F2937]/60">
+                      {h.period} · streak {h.streak}d
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
+
+    if (w.moduleId === 'trabalho') {
+      if (mod !== 'overview') {
+        const data = squareData(w)
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('trabalho')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] p-4 text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <p className="mt-2 text-3xl font-bold text-[#1F2937]">{data.value}</p>
+          </button>
+        )
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('trabalho')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] p-4 text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={Briefcase} label={label} />
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <StatPill title="A fazer" value={String(todo)} bg="#FDA4AF" />
+            <StatPill title="Andando" value={String(doing)} bg="#FFEA5D" />
+            <StatPill title="Feito" value={String(done)} bg="#A5F387" />
+          </div>
+          <p className="mt-3 text-xs font-medium text-[#1F2937]/65">{pendingTasks} pendente(s)</p>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'metas') {
+      if (mod === 'media') {
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('metas')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={Target} label={modTitle} />
+            <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{avgLifeGoal}%</p>
+          </button>
+        )
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('metas')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={Target} label={label} />
+          <div className="space-y-2 px-4 pb-4">
+            {lifeGoals.slice(0, 3).map((g) => (
+              <div
+                key={g.id}
+                className="rounded-[16px] border-2 border-[#1F2937] bg-white/70 px-3 py-2"
+              >
+                <div className="flex justify-between text-sm font-bold text-[#1F2937]">
+                  <span className="truncate">{g.title}</span>
+                  <span>{g.progress}%</span>
+                </div>
+                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-black/10">
+                  <div className="h-full rounded-full bg-[#1F2937]" style={{ width: `${g.progress}%` }} />
+                </div>
+              </div>
+            ))}
+            <p className="text-xs font-medium text-[#1F2937]/65">Média geral: {avgLifeGoal}%</p>
+          </div>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'estudos') {
+      if (mod === 'media') {
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('estudos')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={BookOpen} label={modTitle} />
+            <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{avgSubject}%</p>
+          </button>
+        )
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('estudos')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={BookOpen} label={label} />
+          <div className="space-y-2 px-4 pb-4">
+            {subjects.slice(0, 3).map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center justify-between rounded-[16px] border-2 border-[#1F2937] bg-white/70 px-3 py-2"
+              >
+                <span className="truncate text-sm font-bold text-[#1F2937]">{s.name}</span>
+                <span className="text-sm font-bold text-[#1F2937]">{s.progress}%</span>
+              </div>
+            ))}
+            <p className="text-xs font-medium text-[#1F2937]/65">Progresso médio: {avgSubject}%</p>
+          </div>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'saude') {
+      if (mod !== 'overview') {
+        const data = squareData(w)
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('saude')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
+          </button>
+        )
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('saude')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={HeartPulse} label={label} />
+          <div className="grid grid-cols-3 gap-2 px-4 pb-4">
+            <StatPill title="Água" value={`${health.waterMl}ml`} icon={<Droplets size={12} />} />
+            <StatPill title="Sono" value={`${health.sleepHours}h`} icon={<Moon size={12} />} />
+            <StatPill title="Meta H2O" value={`${waterPct}%`} />
+          </div>
+          <p className="px-4 pb-4 text-xs font-medium text-[#1F2937]/65">
+            Treino: {health.workout || 'não registrado'}
+          </p>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'devpessoal') {
+      if (mod === 'citacao') {
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('devpessoal')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={Sparkles} label={modTitle} />
+            <p className="px-4 pb-5 text-sm font-medium text-[#1F2937]">“{quoteOfDay()}”</p>
+          </button>
+        )
+      }
+      if (mod !== 'overview') {
+        const data = squareData(w)
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('devpessoal')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
+          </button>
+        )
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('devpessoal')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={Sparkles} label={label} />
+          <div className="space-y-2 px-4 pb-4">
+            <p className="rounded-[16px] border-2 border-[#1F2937] bg-white/70 px-3 py-2 text-sm font-medium text-[#1F2937]">
+              “{quoteOfDay()}”
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <StatPill title="Humor" value={moodEmoji} />
+              <StatPill title="Lendo" value={reading ? reading.title.split(' ')[0] : '—'} />
+            </div>
+          </div>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'estatisticas') {
+      if (mod !== 'overview') {
+        const data = squareData(w)
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('estatisticas')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
+          </button>
+        )
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('estatisticas')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={BarChart3} label={label} />
+          <div className="grid grid-cols-3 gap-2 px-4 pb-4">
+            <StatPill title="Hábitos" value={`${habitPct}%`} />
+            <StatPill title="Metas" value={`${avgLifeGoal}%`} />
+            <StatPill title="Estudos" value={`${avgSubject}%`} />
+          </div>
+        </button>
+      )
+    }
+
+    if (w.moduleId === 'conteudo') {
+      if (mod === 'producao') {
+        return (
+          <button
+            type="button"
+            onClick={() => openModule('conteudo')}
+            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+            style={surfaceStyle(color)}
+          >
+            <WidgetHeader Icon={Clapperboard} label={modTitle} />
+            <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{contentOpen.length}</p>
+          </button>
+        )
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => openModule('conteudo')}
+          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
+          style={surfaceStyle(color)}
+        >
+          <WidgetHeader Icon={Clapperboard} label={label} />
+          <div className="space-y-2 px-4 pb-4">
+            {contentOpen.slice(0, 3).map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center justify-between rounded-[16px] border-2 border-[#1F2937] bg-white/70 px-3 py-2"
+              >
+                <span className="truncate text-sm font-bold text-[#1F2937]">{c.title}</span>
+                <span className="text-[10px] font-bold uppercase text-[#1F2937]/70">{c.status}</span>
+              </div>
+            ))}
+            <p className="text-xs font-medium text-[#1F2937]/65">{contentOpen.length} em produção</p>
+          </div>
+        </button>
+      )
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => openModule(w.moduleId)}
+        className="w-full rounded-[28px] border-2 border-[#1F2937] p-4 text-left shadow-[4px_4px_0_#1F2937] ink-surface"
+        style={surfaceStyle(color)}
+      >
+        <WidgetHeader Icon={Icon} label={label} />
+      </button>
+    )
+  }
+
+  function renderSquare(w: DashboardWidgetConfig) {
+    const color = moduleColor(w.moduleId)
+    const data = squareData(w)
+    return (
+      <button
+        type="button"
+        onClick={() => openModule(w.moduleId)}
+        className={
+          isSoft
+            ? `${isGlass ? 'glass-widget' : 'ink-surface'} flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-[24px] p-2.5 text-center transition hover:scale-[1.03] sm:gap-2 sm:p-3`
+            : 'flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-[24px] border-2 border-[#1F2937] p-2.5 text-center shadow-[3px_3px_0_#1F2937] ink-surface transition hover:scale-[1.03] sm:gap-2 sm:p-3'
+        }
+        style={surfaceStyle(color)}
+      >
+        <span
+          className={
+            isSoft
+              ? `${isGlass ? 'glass-accent' : 'soft-accent'} flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-11 sm:w-11`
+              : 'flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-white sm:h-11 sm:w-11 sm:rounded-[16px]'
+          }
+          style={iconBadgeStyle(color)}
+        >
+          <data.Icon size={20} className="text-[#1F2937]" />
+        </span>
+        <p className="max-w-full truncate px-0.5 text-sm font-bold leading-tight text-[#1F2937] sm:text-lg">
+          {data.value}
+        </p>
+        <p className="max-w-full truncate text-[9px] font-bold uppercase tracking-wide text-[#1F2937]/65 sm:text-[10px]">
+          {data.label}
+        </p>
+      </button>
+    )
+  }
+
+  const addModalities = addModule ? modalitiesFor(addModule) : []
 
   return (
     <div className="pb-8">
-      {/* Mobile-first greeting strip */}
       <div className="mb-4 flex items-end justify-between gap-3 md:mb-5">
         <div>
           <p className="text-sm font-semibold text-slate-500">
@@ -114,307 +865,455 @@ export function Dashboard() {
               month: 'short',
             })}
           </p>
-          <h2 className="mt-0.5 text-3xl font-bold tracking-tight text-[#1F2937]">
-            Seu dia
-          </h2>
+          <h2 className="mt-0.5 text-3xl font-bold tracking-tight text-[var(--app-fg)]">Seu dia</h2>
+          <p className="mt-1 text-xs text-slate-400">Quadrado ou card · escolha a modalidade</p>
         </div>
-        <span
-          className="rounded-full border-2 border-[#1F2937] px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_#1F2937]"
-          style={{ background: theme }}
-        >
-          🔥 {bestStreak} streak
-        </span>
-      </div>
-
-      {/* Week calendar */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-4 overflow-hidden rounded-[28px] border-2 border-[#1F2937] bg-white p-3 shadow-[4px_4px_0_#1F2937]"
-      >
-        <div className="flex justify-between gap-1">
-          {week.map((date) => {
-            const d = new Date(date + 'T12:00:00')
-            const active = date === today
-            const hasAppt = appointments.some((a) => a.date === date)
-            const habitCount = habits.filter((h) => h.completedDates.includes(date)).length
-            return (
-              <div
-                key={date}
-                className="flex flex-1 flex-col items-center gap-1.5 rounded-[20px] px-1 py-1.5"
-              >
-                <span className={`text-[10px] font-bold uppercase ${active ? 'text-[#1F2937]' : 'text-slate-400'}`}>
-                  {d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
-                </span>
-                <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold transition ${
-                    active
-                      ? 'border-2 border-[#1F2937] text-[#1F2937] shadow-[2px_2px_0_#1F2937]'
-                      : 'bg-[#F8FAFC] text-slate-600'
-                  }`}
-                  style={active ? { background: theme } : undefined}
-                >
-                  {d.getDate()}
-                </span>
-                <span className="flex h-1.5 gap-0.5">
-                  {hasAppt && <span className="h-1.5 w-1.5 rounded-full bg-[#70CFFF]" />}
-                  {habitCount > 0 && <span className="h-1.5 w-1.5 rounded-full bg-[#A5F387]" />}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </motion.div>
-
-      {/* Soft reminder / quote card */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="relative mb-4 overflow-hidden rounded-[32px] border-2 border-[#1F2937] p-5 shadow-[5px_5px_0_#1F2937]"
-        style={{ background: theme }}
-      >
-        <div className="pointer-events-none absolute -right-2 -top-2 text-7xl opacity-30">💫</div>
-        <div className="relative z-10 flex items-start gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border-2 border-[#1F2937] bg-white text-3xl shadow-[3px_3px_0_#1F2937]">
-            ✨
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className="inline-flex items-center gap-1 rounded-full border-2 border-[#1F2937] bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1F2937]">
-              <Sparkles size={10} /> Frase do dia
-            </span>
-            <p className="mt-2 text-base font-bold leading-snug text-[#1F2937] md:text-lg">
-              {quote}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="rounded-full border-2 border-[#1F2937] bg-[#FFEA5D] px-3 py-1 text-xs font-bold shadow-[2px_2px_0_#1F2937]">
-                {habitsDone}/{habits.length} hábitos
-              </span>
-              <span className="rounded-full border-2 border-[#1F2937] bg-white px-3 py-1 text-xs font-bold shadow-[2px_2px_0_#1F2937]">
-                {todayAppts.length} eventos
-              </span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Vertical colorful metric cards — like macros */}
-      <div className="mb-4">
-        <h3 className="mb-3 text-lg font-bold text-[#1F2937]">Resumo rápido</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {metrics.map((m, i) => {
-            const Icon = m.Icon
-            return (
-              <motion.div
-                key={m.label}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.06 + i * 0.04 }}
-                className="relative flex min-h-[150px] flex-col overflow-hidden rounded-[28px] border-2 border-[#1F2937] shadow-[4px_4px_0_#1F2937]"
-                style={{ background: m.color }}
-              >
-                <div className="relative z-10 flex flex-1 flex-col justify-between p-3.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#1F2937]/70">
-                      {m.label}
-                    </p>
-                    <div className="rounded-full border-2 border-[#1F2937] bg-white/80 p-1.5">
-                      <Icon size={12} className="text-[#1F2937]" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xl font-bold leading-tight text-[#1F2937] sm:text-2xl">
-                      {m.value}
-                    </p>
-                    <p className="mt-0.5 text-[11px] font-medium text-[#1F2937]/65">{m.sub}</p>
-                  </div>
-                </div>
-                {/* bottom fill bar like progress */}
-                <div className="h-2 w-full bg-black/10">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${m.fill}%` }}
-                    transition={{ delay: 0.2 + i * 0.05, duration: 0.5 }}
-                    className="h-full bg-[#1F2937]/35"
-                  />
-                </div>
-              </motion.div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Habits timeline */}
-      <div className="mb-4 rounded-[32px] border-2 border-[#1F2937] bg-white p-4 shadow-[4px_4px_0_#1F2937] md:p-5">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-[#FFEA5D]">
-              <Target size={16} />
-            </div>
-            <div>
-              <h3 className="font-bold text-[#1F2937]">Rotina de hoje</h3>
-              <p className="text-xs text-slate-400">{habitPct}% concluído</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 rounded-full border-2 border-[#1F2937] bg-[#FFF7ED] px-2.5 py-1 text-xs font-bold text-orange-600">
-            <Flame size={12} /> {bestStreak}
-          </div>
-        </div>
-
-        <div className="relative space-y-2.5">
-          <div className="absolute bottom-5 left-[15px] top-5 w-px border-l-2 border-dashed border-[#C4B5FD]" />
-          {habits.slice(0, 5).map((h, index) => {
-            const done = h.completedDates.includes(today)
-            const color = HABIT_COLORS[index % HABIT_COLORS.length]
-            return (
-              <motion.button
-                key={h.id}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.04 }}
-                onClick={() => toggleHabit(h.id)}
-                className="relative flex w-full items-center gap-3 text-left"
-              >
-                <span
-                  className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[#1F2937] transition ${
-                    done ? 'bg-[#A5F387]' : 'bg-white'
-                  }`}
-                >
-                  {done && <Check size={14} strokeWidth={3} />}
-                </span>
-                <div
-                  className={`flex flex-1 items-center gap-3 rounded-[22px] border-2 border-[#1F2937] p-3 shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.01] ${
-                    done ? 'opacity-70' : ''
-                  }`}
-                  style={{ background: done ? '#F8FAFC' : color }}
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-white text-sm font-bold">
-                    {['🧘', '💧', '📖', '🏋️', '✍️'][index % 5]}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`truncate text-sm font-bold text-[#1F2937] ${done ? 'line-through' : ''}`}>
-                      {h.name}
-                    </p>
-                    <p className="text-[11px] font-medium capitalize text-[#1F2937]/60">
-                      {h.period} · streak {h.streak}d
-                    </p>
-                  </div>
-                </div>
-              </motion.button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Schedule colorful cards */}
-      <div className="mb-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-[#70CFFF]">
-              <CalendarDays size={16} />
-            </div>
-            <h3 className="font-bold text-[#1F2937]">Agenda</h3>
-          </div>
-          <span className="rounded-full border-2 border-[#1F2937] bg-white px-2.5 py-1 text-[10px] font-bold">
-            próximos
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setWidgetTab('padrao')
+              setEditOpen(true)
+            }}
+            className={
+              isGlass
+                ? 'glass-chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-[var(--app-fg)] transition hover:scale-105'
+                : isMinimal
+                  ? 'soft-chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-[var(--app-fg)] transition hover:scale-105'
+                  : 'flex items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-white px-3 py-1.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937] hover:scale-105'
+            }
+          >
+            <Settings2 size={14} /> Widgets
+          </button>
+          <span
+            className={
+              isGlass
+                ? 'glass-chip rounded-full px-3 py-1.5 text-xs font-bold'
+                : isMinimal
+                  ? 'soft-chip rounded-full px-3 py-1.5 text-xs font-bold'
+                  : 'rounded-full border-2 border-[#1F2937] px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_#1F2937] ink-surface'
+            }
+            style={
+              isSoft
+                ? isMinimal
+                  ? { color: '#ea580c' }
+                  : { boxShadow: `0 4px 16px ${theme}66` }
+                : { background: theme }
+            }
+          >
+            🔥 {bestStreak}
           </span>
         </div>
+      </div>
 
-        {upcoming.length === 0 ? (
-          <div className="rounded-[28px] border-2 border-dashed border-slate-300 py-10 text-center text-sm text-slate-400">
-            Sem compromissos por enquanto
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {upcoming.map((a, i) => {
-              const isToday = a.date === today
-              const color = EVENT_COLORS[i % EVENT_COLORS.length]
-              const priorityDot =
-                a.priority === 'alta' ? '#FB7185' : a.priority === 'media' ? '#FBBF24' : '#34D399'
+      <div className="space-y-4">
+        {layout.map((group, gi) => {
+          if (group.type === 'squares') {
+            return (
+              <motion.div
+                key={`sq-${gi}-${group.items.map((i) => i.id).join('-')}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: gi * 0.04 }}
+                className="grid grid-cols-4 gap-2 sm:gap-3"
+              >
+                {group.items.map((w) => (
+                  <div key={w.id} className="min-w-0">
+                    {renderSquare(w)}
+                  </div>
+                ))}
+              </motion.div>
+            )
+          }
+          return (
+            <motion.div
+              key={group.item.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: gi * 0.04 }}
+            >
+              {renderCard(group.item)}
+            </motion.div>
+          )
+        })}
+      </div>
+
+      {activeWidgets.length === 0 && (
+        <div className="rounded-[28px] border-2 border-dashed border-slate-300 py-12 text-center">
+          <p className="text-sm text-slate-400">Nenhum widget ativo</p>
+          <button
+            onClick={() => setEditOpen(true)}
+            className="mt-3 rounded-full border-2 border-[#1F2937] bg-[#FFEA5D] px-4 py-2 text-sm font-bold text-[#1F2937]"
+          >
+            Montar dashboard
+          </button>
+        </div>
+      )}
+
+      <Modal open={editOpen} title="Widgets do dashboard" onClose={() => setEditOpen(false)}>
+        <div className="mb-4 flex gap-2 rounded-[16px] border-2 border-[#1F2937] bg-slate-50 p-1">
+          {(
+            [
+              { id: 'padrao' as const, label: 'Padrão' },
+              { id: 'personalizar' as const, label: 'Personalizar' },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setWidgetTab(tab.id)}
+              className={`flex-1 rounded-[12px] py-2 text-sm font-bold transition ${
+                widgetTab === tab.id
+                  ? 'border-2 border-[#1F2937] bg-[#FFEA5D] text-[#1F2937] shadow-[2px_2px_0_#1F2937]'
+                  : 'text-slate-500 hover:text-[#1F2937]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {widgetTab === 'padrao' && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500">
+              Escolha um layout pronto. Só entram módulos ativos na sidebar. Depois você pode
+              personalizar se quiser.
+            </p>
+            {DASHBOARD_PRESETS.map((preset) => {
+              const selected = activePreset === preset.id
               return (
-                <motion.div
-                  key={a.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 * i }}
-                  className="overflow-hidden rounded-[26px] border-2 border-[#1F2937] shadow-[3px_3px_0_#1F2937]"
-                  style={{ background: color }}
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    applyDashboardPreset(
+                      preset.id,
+                      enabledModules.map((m) => m.id),
+                    )
+                    setActivePreset(preset.id)
+                  }}
+                  className={`flex w-full items-start gap-3 rounded-[20px] border-2 border-[#1F2937] p-4 text-left shadow-[2px_2px_0_#1F2937] transition hover:scale-[1.01] ${
+                    selected ? 'bg-[#A5F387]' : 'bg-white'
+                  }`}
                 >
-                  <div className="flex items-stretch">
-                    <div className="flex w-16 shrink-0 flex-col items-center justify-center border-r-2 border-[#1F2937]/15 bg-white/40 px-2 py-3">
-                      <span className="text-lg font-bold text-[#1F2937]">{a.time.slice(0, 5)}</span>
-                      <span className="text-[10px] font-bold uppercase text-[#1F2937]/60">
-                        {isToday
-                          ? 'hoje'
-                          : new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: 'short',
-                            })}
-                      </span>
-                    </div>
-                    <div className="flex flex-1 items-center justify-between gap-2 p-3.5">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-[#1F2937]">{a.title}</p>
-                        <p className="mt-0.5 text-[11px] font-medium capitalize text-[#1F2937]/65">
-                          {a.priority}
-                          {a.location ? ` · ${a.location}` : ''}
-                          {a.reminder ? ' · 🔔' : ''}
-                        </p>
+                  <span
+                    className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[#1F2937] ${
+                      selected ? 'bg-[#1F2937] text-white' : 'bg-white'
+                    }`}
+                  >
+                    {selected && <Check size={14} strokeWidth={3} />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[#1F2937]">{preset.label}</p>
+                    <p className="mt-0.5 text-xs text-[#1F2937]/65">{preset.description}</p>
+                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-[#1F2937]/45">
+                      {preset.widgets.length} widgets ·{' '}
+                      {preset.widgets.filter((w) => w.size === 'card').length} cards ·{' '}
+                      {preset.widgets.filter((w) => w.size === 'square').length} ícones
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setWidgetTab('personalizar')}
+              className="w-full rounded-full border-2 border-dashed border-[#1F2937]/40 py-2.5 text-sm font-bold text-slate-500 hover:border-[#1F2937] hover:text-[#1F2937]"
+            >
+              Quero personalizar →
+            </button>
+          </div>
+        )}
+
+        {widgetTab === 'personalizar' && (
+          <>
+            <p className="mb-4 text-sm text-slate-500">
+              Ajuste ordem, modalidade e tamanho. Ordem da lista = ordem no dashboard.
+            </p>
+
+            <div className="mb-5 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Seus widgets</p>
+              {settings.dashboardWidgets.map((w, index) => {
+                const color = moduleColor(w.moduleId)
+                const mods = modalitiesFor(w.moduleId)
+                const total = settings.dashboardWidgets.length
+                return (
+                  <div
+                    key={w.id}
+                    className="rounded-[20px] border-2 border-[#1F2937] bg-white p-3 shadow-[2px_2px_0_#1F2937]"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[#1F2937] bg-[#FFEA5D] text-xs font-bold text-[#1F2937]">
+                          {index + 1}
+                        </span>
+                        <span
+                          className="truncate rounded-full border-2 border-[#1F2937] px-2.5 py-0.5 text-xs font-bold ink-surface"
+                          style={surfaceStyle(color)}
+                        >
+                          {moduleLabel(w.moduleId)}
+                        </span>
                       </div>
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full border-2 border-[#1F2937]"
-                        style={{ background: priorityDot }}
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => {
+                            moveDashboardWidget(w.id, 'up')
+                            setActivePreset(null)
+                          }}
+                          className="rounded-full border-2 border-[#1F2937] p-1.5 text-[#1F2937] hover:bg-slate-50 disabled:opacity-30"
+                          aria-label="Subir"
+                        >
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === total - 1}
+                          onClick={() => {
+                            moveDashboardWidget(w.id, 'down')
+                            setActivePreset(null)
+                          }}
+                          className="rounded-full border-2 border-[#1F2937] p-1.5 text-[#1F2937] hover:bg-slate-50 disabled:opacity-30"
+                          aria-label="Descer"
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removeDashboardWidget(w.id)
+                            setActivePreset(null)
+                          }}
+                          className="rounded-full border-2 border-[#1F2937] p-1.5 text-rose-500 hover:bg-rose-50"
+                          aria-label="Remover widget"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-400">
+                      Modalidade
+                    </label>
+                    <select
+                      value={w.modality}
+                      onChange={(e) => {
+                        updateDashboardWidget(w.id, { modality: e.target.value })
+                        setActivePreset(null)
+                      }}
+                      className="mb-3 w-full rounded-[14px] border-2 border-[#1F2937] bg-white px-3 py-2 text-sm font-medium text-[#1F2937]"
+                    >
+                      {mods.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="flex gap-2">
+                      <SizeBtn
+                        active={w.size === 'square'}
+                        onClick={() => {
+                          updateDashboardWidget(w.id, { size: 'square' })
+                          setActivePreset(null)
+                        }}
+                        icon={<Square size={14} />}
+                        label="Quadrado"
+                      />
+                      <SizeBtn
+                        active={w.size === 'card'}
+                        onClick={() => {
+                          updateDashboardWidget(w.id, { size: 'card' })
+                          setActivePreset(null)
+                        }}
+                        icon={<LayoutGrid size={14} />}
+                        label="Card"
                       />
                     </div>
                   </div>
-                </motion.div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                )
+              })}
+            </div>
 
-      {/* Work progress pills */}
-      <div className="rounded-[32px] border-2 border-[#1F2937] bg-white p-4 shadow-[4px_4px_0_#1F2937] md:p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-[#FDBA74]">
-            <Briefcase size={16} />
-          </div>
-          <h3 className="font-bold text-[#1F2937]">Trabalho</h3>
-        </div>
-        <div className="grid grid-cols-3 gap-2.5">
-          {(
-            [
-              { status: 'todo' as const, label: 'A fazer', color: '#FDA4AF' },
-              { status: 'doing' as const, label: 'Andando', color: '#FFEA5D' },
-              { status: 'done' as const, label: 'Feito', color: '#A5F387' },
-            ]
-          ).map((col) => {
-            const count = tasks.filter((t) => t.status === col.status).length
-            return (
-              <div
-                key={col.status}
-                className="rounded-[22px] border-2 border-[#1F2937] p-3 text-center shadow-[3px_3px_0_#1F2937]"
-                style={{ background: col.color }}
+            <div className="rounded-[20px] border-2 border-dashed border-[#1F2937] p-3">
+              <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">
+                Adicionar widget
+              </p>
+
+              <label className="mb-1 block text-[10px] font-bold uppercase text-slate-400">
+                Módulo
+              </label>
+              <select
+                value={addModule}
+                onChange={(e) => {
+                  const id = e.target.value as DashboardWidgetId | ''
+                  setAddModule(id)
+                  if (id) {
+                    const first = modalitiesFor(id)[0]?.id ?? 'overview'
+                    setAddModality(first)
+                  }
+                }}
+                className="mb-3 w-full rounded-[14px] border-2 border-[#1F2937] bg-white px-3 py-2 text-sm font-medium"
               >
-                <p className="text-2xl font-bold text-[#1F2937]">{count}</p>
-                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1F2937]/70">
-                  {col.label}
-                </p>
-              </div>
-            )
-          })}
-        </div>
+                <option value="">Escolher módulo…</option>
+                {availableModules.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
 
-        {pendingTasks > 0 && (
-          <div className="mt-3 flex items-center gap-3 rounded-[20px] border-2 border-[#1F2937] bg-[#FFF7ED] px-3 py-2.5">
-            <Bell size={16} className="shrink-0 text-orange-500" />
-            <p className="text-xs font-semibold text-[#1F2937]">
-              Você tem <span className="font-bold">{pendingTasks} tarefas</span> abertas — foque nas de prioridade alta.
-            </p>
-          </div>
+              {addModule && (
+                <>
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-slate-400">
+                    Modalidade
+                  </label>
+                  <select
+                    value={addModality}
+                    onChange={(e) => setAddModality(e.target.value)}
+                    className="mb-3 w-full rounded-[14px] border-2 border-[#1F2937] bg-white px-3 py-2 text-sm font-medium"
+                  >
+                    {addModalities.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label} — {m.description}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="mb-3 flex gap-2">
+                    <SizeBtn
+                      active={addSize === 'square'}
+                      onClick={() => setAddSize('square')}
+                      icon={<Square size={14} />}
+                      label="Quadrado"
+                    />
+                    <SizeBtn
+                      active={addSize === 'card'}
+                      onClick={() => setAddSize('card')}
+                      icon={<LayoutGrid size={14} />}
+                      label="Card"
+                    />
+                  </div>
+                </>
+              )}
+
+              <button
+                type="button"
+                disabled={!addModule}
+                onClick={() => {
+                  if (!addModule) return
+                  addDashboardWidget(addModule, addModality, addSize)
+                  setActivePreset(null)
+                  setAddModule('')
+                  setAddModality('overview')
+                  setAddSize('square')
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#A5F387] py-2.5 text-sm font-bold text-[#1F2937] disabled:opacity-40"
+              >
+                <Plus size={16} /> Adicionar
+              </button>
+            </div>
+
+            {availableModules.length === 0 && (
+              <p className="py-4 text-center text-sm text-slate-400">
+                Ative módulos em Personalizar para usá-los como widgets.
+              </p>
+            )}
+          </>
         )}
+
+        <button
+          onClick={() => setEditOpen(false)}
+          className="mt-4 w-full rounded-full border-2 border-[#1F2937] bg-[#1F2937] py-3 text-sm font-bold text-white"
+        >
+          Pronto
+        </button>
+      </Modal>
+    </div>
+  )
+}
+
+function SizeBtn({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: ReactNode
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border-2 border-[#1F2937] py-2 text-xs font-bold transition ${
+        active ? 'bg-[#1F2937] text-white' : 'bg-white text-[#1F2937]'
+      }`}
+    >
+      {icon} {label}
+    </button>
+  )
+}
+
+function WidgetHeader({
+  Icon,
+  label,
+  subtitle,
+  color,
+  trailing,
+}: {
+  Icon: LucideIcon
+  label: string
+  subtitle?: string
+  color?: string
+  trailing?: ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-white"
+          style={color ? { background: color } : undefined}
+        >
+          <Icon size={18} className="text-[#1F2937]" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="truncate font-bold leading-tight text-[#1F2937]">{label}</h3>
+          {subtitle && (
+            <p className="mt-0.5 truncate text-xs font-medium text-[#1F2937]/60">{subtitle}</p>
+          )}
+        </div>
       </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {trailing}
+        <span className="soft-open flex items-center gap-0.5 rounded-full border-2 border-[#1F2937] bg-white/85 px-2.5 py-1 text-[11px] font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]">
+          Abrir
+          <ChevronRight size={13} strokeWidth={3} />
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function StatPill({
+  title,
+  value,
+  bg = 'rgba(255,255,255,0.7)',
+  icon,
+}: {
+  title: string
+  value: string
+  bg?: string
+  icon?: ReactNode
+}) {
+  return (
+    <div className="rounded-[16px] border-2 border-[#1F2937] px-3 py-2" style={{ background: bg }}>
+      <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#1F2937]/65">
+        {icon} {title}
+      </p>
+      <p className="mt-0.5 truncate text-sm font-bold text-[#1F2937]">{value}</p>
     </div>
   )
 }

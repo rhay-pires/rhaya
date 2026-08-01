@@ -1,12 +1,13 @@
 import { Droplets, Moon, Salad, Dumbbell } from 'lucide-react'
 import { useApp } from '../store/AppStore'
+import { useSettings } from '../store/SettingsStore'
 import { SectionTitle } from './ui'
-
-const WATER_GOAL = 2000
 
 export function Saude() {
   const { health, setHealth } = useApp()
-  const waterPct = Math.min(100, Math.round((health.waterMl / WATER_GOAL) * 100))
+  const { settings } = useSettings()
+  const waterGoal = settings.waterGoalMl
+  const waterPct = Math.min(100, Math.round((health.waterMl / waterGoal) * 100))
 
   return (
     <div>
@@ -20,7 +21,7 @@ export function Saude() {
           </div>
           <p className="text-3xl font-bold text-slate-800">
             {health.waterMl}
-            <span className="text-base font-medium text-slate-400"> / {WATER_GOAL} ml</span>
+            <span className="text-base font-medium text-slate-400"> / {waterGoal} ml</span>
           </p>
           <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
             <div
@@ -62,7 +63,7 @@ export function Saude() {
             onChange={(e) => setHealth((h) => ({ ...h, sleepHours: Number(e.target.value) }))}
             className="mt-4 w-full accent-[#6C4BFF]"
           />
-          <p className="mt-2 text-xs text-slate-400">Meta: 7–9 horas</p>
+          <p className="mt-2 text-xs text-slate-400">Meta: {settings.sleepGoalHours}h</p>
         </div>
 
         <div className="bento-card p-5 lg:col-span-4">
