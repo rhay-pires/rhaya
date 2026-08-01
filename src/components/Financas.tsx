@@ -24,8 +24,6 @@ import {
   Tooltip,
 } from 'recharts'
 import { useApp } from '../store/AppStore'
-import { useCustomization } from '../store/CustomizationStore'
-import { useSettings } from '../store/SettingsStore'
 import type {
   BankAccount,
   FinancialGoal,
@@ -34,6 +32,7 @@ import type {
   TransactionType,
 } from '../types'
 import { formatBRL, formatBRLHidden, isSameMonth, percent, todayISO, uid } from '../utils/format'
+import { useModuleStyle } from '../hooks/useModuleStyle'
 import { EmptyState, Modal, PillTabs, SectionTitle } from './ui'
 
 type FinTab =
@@ -70,47 +69,12 @@ const tabs: { id: FinTab; label: string }[] = [
   { id: 'assinaturas', label: '🔄 Assinaturas' },
 ]
 
-function useFinStyle() {
-  const { getModule } = useCustomization()
-  const { settings } = useSettings()
-  const accent = getModule('financas')?.color ?? '#A5F387'
-  const style = settings.visualStyle
-  const isGlass = style === 'glass'
-  const isMinimal = style === 'minimal'
-  const isSoft = isGlass || isMinimal
-
-  const surface = (color = accent): CSSProperties =>
-    isGlass
-      ? {
-          background: `linear-gradient(160deg, ${color} 0%, color-mix(in srgb, ${color} 72%, white) 100%)`,
-        }
-      : isMinimal
-        ? { background: `color-mix(in srgb, ${color} 82%, white)` }
-        : { background: color }
-
-  const primaryBtn =
-    isMinimal
-      ? 'rounded-full bg-[#3B82F6] px-4 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(59,130,246,0.3)] transition hover:scale-[1.02]'
-      : isGlass
-        ? 'rounded-full border border-white/50 bg-white/70 px-4 py-2.5 text-sm font-bold text-[#0f172a] shadow-[0_8px_24px_rgba(99,102,241,0.15)] backdrop-blur transition hover:scale-[1.02]'
-        : 'rounded-full border-2 border-[#1F2937] bg-[#1F2937] px-4 py-2.5 text-sm font-bold text-white shadow-[3px_3px_0_#A5F387] transition hover:scale-[1.02]'
-
-  const secondaryBtn =
-    isMinimal
-      ? 'soft-chip rounded-full px-4 py-2.5 text-sm font-bold text-[var(--app-fg)] transition hover:scale-[1.02]'
-      : isGlass
-        ? 'glass-chip rounded-full px-4 py-2.5 text-sm font-bold text-[var(--app-fg)] transition hover:scale-[1.02]'
-        : 'rounded-full border-2 border-[#1F2937] bg-white px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937] transition hover:scale-[1.02]'
-
-  return { accent, style, isGlass, isMinimal, isSoft, surface, primaryBtn, secondaryBtn }
-}
-
 export function Financas() {
   const [tab, setTab] = useState<FinTab>('resumo')
-  const { accent } = useFinStyle()
+  const { accent, pageVars } = useModuleStyle('financas', '#A5F387')
 
   return (
-    <div style={{ ['--fin-accent' as string]: accent }}>
+    <div style={pageVars}>
       <SectionTitle
         title="Finanças & Poupança"
         subtitle="Financier Hub — controle total do seu dinheiro"
@@ -149,7 +113,7 @@ function ResumoTab() {
     month,
     addTransaction,
   } = useApp()
-  const { accent, isGlass, isMinimal, isSoft, surface, primaryBtn, secondaryBtn } = useFinStyle()
+  const { accent, isGlass, isMinimal, isSoft, surface, primaryBtn, secondaryBtn } = useModuleStyle('financas', '#A5F387')
   const [txModal, setTxModal] = useState<TransactionType | null>(null)
   const [editAccount, setEditAccount] = useState<BankAccount | null>(null)
 
@@ -422,7 +386,7 @@ function ResumoTab() {
 
 function FaturasTab() {
   const { cards, accounts, payInvoice, balanceVisible } = useApp()
-  const { accent, primaryBtn } = useFinStyle()
+  const { accent, primaryBtn } = useModuleStyle('financas', '#A5F387')
 
   return (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">

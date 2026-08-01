@@ -15,10 +15,12 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { VIEW_OPTIONS } from '../data/modules'
+import { useModuleStyle } from '../hooks/useModuleStyle'
 import { useApp } from '../store/AppStore'
 import { useCustomization } from '../store/CustomizationStore'
 import type { Habit, ViewMode } from '../types'
 import { todayISO, uid } from '../utils/format'
+import { ModuleHero } from './ModuleHero'
 import { Modal } from './ui'
 import { ViewSwitcher } from './ViewSwitcher'
 
@@ -71,9 +73,9 @@ function intensityColor(count: number, max: number) {
 export function Habitos() {
   const { habits, setHabits, toggleHabit } = useApp()
   const { getModule, setModuleView } = useCustomization()
+  const { accent, primaryBtn, pageVars } = useModuleStyle('habitos', '#FFEA5D')
   const mod = getModule('habitos')
   const view = (mod?.viewMode === 'insights' ? 'insights' : 'rotina') as 'rotina' | 'insights'
-  const accent = mod?.color ?? '#FFEA5D'
   const [selectedDate, setSelectedDate] = useState(todayISO())
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -108,14 +110,14 @@ export function Habitos() {
   const maxDay = Math.max(1, ...Object.values(completionByDay))
 
   return (
-    <div className="soft-habitos relative mx-auto max-w-3xl pb-24">
+    <div style={pageVars} className="soft-habitos relative mx-auto max-w-3xl space-y-5 pb-24">
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium tracking-wide text-[#8B5CF6]">
+          <p className="text-sm font-medium tracking-wide" style={{ color: accent }}>
             {selected.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' })}
           </p>
-          <h2 className="mt-1 text-3xl font-bold tracking-tight text-[#1E1B4B] md:text-4xl">
+          <h2 className="mt-1 text-3xl font-bold tracking-tight text-[var(--app-fg)] md:text-4xl">
             Sua rotina
           </h2>
           <p className="mt-1 text-sm text-slate-500">Marque, construa streaks e acompanhe o ritmo.</p>
@@ -127,6 +129,14 @@ export function Habitos() {
           accent={accent}
         />
       </div>
+
+      <ModuleHero
+        moduleId="habitos"
+        fallback="#FFEA5D"
+        title="Conclusão do dia"
+        value={`${pct}%`}
+        subtitle={`${done}/${habits.length} hábitos · streak ${bestStreak}`}
+      />
 
       <AnimatePresence mode="wait">
         {view === 'rotina' ? (
@@ -426,7 +436,7 @@ export function Habitos() {
 
             <button
               onClick={() => setView('rotina')}
-              className="w-full rounded-full bg-[#2E1065] py-3.5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(46,16,101,0.3)] transition hover:scale-[1.02]"
+              className={`w-full ${primaryBtn}`}
             >
               Voltar para a rotina
             </button>
@@ -437,7 +447,7 @@ export function Habitos() {
       {/* FAB */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#2E1065] text-white shadow-[0_12px_32px_rgba(46,16,101,0.4)] transition hover:scale-110 md:bottom-8 md:right-10"
+        className={`fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center ${primaryBtn} !rounded-full !px-0 !py-0 md:bottom-8 md:right-10`}
         aria-label="Adicionar hábito"
       >
         <Plus size={24} />
@@ -492,7 +502,7 @@ export function Habitos() {
               )
             })}
           </div>
-          <button className="w-full rounded-full bg-[#2E1065] py-3 text-sm font-bold text-white hover:scale-[1.02]">
+          <button className={`w-full ${primaryBtn}`}>
             Salvar hábito
           </button>
         </form>

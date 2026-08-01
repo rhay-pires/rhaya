@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BookMarked, Heart, Smile, Star } from 'lucide-react'
+import { useModuleStyle } from '../hooks/useModuleStyle'
 import { useApp } from '../store/AppStore'
 import { todayISO, uid } from '../utils/format'
+import { ModuleHero } from './ModuleHero'
 import { SectionTitle } from './ui'
 
 export function DevPessoal() {
@@ -18,6 +20,10 @@ export function DevPessoal() {
     setJournal,
     affirmations,
   } = useApp()
+  const { accent, primaryBtn, pageVars, tileClass, surface } = useModuleStyle(
+    'devpessoal',
+    '#FDA4AF',
+  )
 
   const [gratitudeText, setGratitudeText] = useState('')
   const [journalTitle, setJournalTitle] = useState('')
@@ -25,19 +31,35 @@ export function DevPessoal() {
   const [mood, setMood] = useState(4)
   const affirmation = affirmations[Math.floor(Date.now() / 86400000) % affirmations.length]
 
+  const avgWheel = useMemo(() => {
+    if (!wheel.length) return 0
+    return Math.round((wheel.reduce((s, w) => s + w.score, 0) / wheel.length) * 10) / 10
+  }, [wheel])
+
   return (
-    <div>
-      <SectionTitle title="Desenvolvimento Pessoal" subtitle="Roda da Vida, gratidão, leituras e journaling" />
+    <div style={pageVars} className="space-y-5">
+      <SectionTitle
+        title="Desenvolvimento Pessoal"
+        subtitle="Roda da Vida, gratidão, leituras e journaling"
+      />
+
+      <ModuleHero
+        moduleId="devpessoal"
+        fallback="#FDA4AF"
+        title="Roda da Vida"
+        value={`${avgWheel}/10`}
+        subtitle={`Humor hoje: ${['😞', '😕', '😐', '🙂', '😄'][mood - 1]}`}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="bento-card p-5 lg:col-span-6">
-          <h3 className="mb-4 font-semibold text-slate-800">Roda da Vida</h3>
+        <div className={`${tileClass} p-5 lg:col-span-6`} style={surface(accent)}>
+          <h3 className="mb-4 font-bold text-[#1F2937]">Roda da Vida</h3>
           <div className="space-y-3">
             {wheel.map((w) => (
               <div key={w.area}>
                 <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-slate-600">{w.area}</span>
-                  <span className="font-semibold text-violet-600">{w.score}/10</span>
+                  <span className="text-[#1F2937]/75">{w.area}</span>
+                  <span className="font-bold text-[#1F2937]">{w.score}/10</span>
                 </div>
                 <input
                   type="range"
@@ -46,10 +68,12 @@ export function DevPessoal() {
                   value={w.score}
                   onChange={(e) =>
                     setWheel((list) =>
-                      list.map((x) => (x.area === w.area ? { ...x, score: Number(e.target.value) } : x)),
+                      list.map((x) =>
+                        x.area === w.area ? { ...x, score: Number(e.target.value) } : x,
+                      ),
                     )
                   }
-                  className="w-full accent-[#6C4BFF]"
+                  className="w-full accent-[var(--module-accent)]"
                 />
               </div>
             ))}
@@ -57,9 +81,11 @@ export function DevPessoal() {
         </div>
 
         <div className="space-y-4 lg:col-span-6">
-          <div className="bento-card bg-gradient-to-br from-violet-50 to-blue-50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-violet-500">Afirmação do dia</p>
-            <p className="mt-2 text-lg font-medium text-slate-800">“{affirmation}”</p>
+          <div className={`${tileClass} p-5`} style={surface(accent)}>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#1F2937]/55">
+              Afirmação do dia
+            </p>
+            <p className="mt-2 text-lg font-medium text-[#1F2937]">“{affirmation}”</p>
           </div>
 
           <div className="bento-card p-5">
@@ -79,8 +105,13 @@ export function DevPessoal() {
                     ])
                   }}
                   className={`flex h-10 w-10 items-center justify-center rounded-full text-lg transition hover:scale-110 ${
-                    mood === n ? 'bg-violet-100 ring-2 ring-violet-400' : 'bg-slate-50'
+                    mood === n ? 'ring-2' : 'bg-slate-50'
                   }`}
+                  style={
+                    mood === n
+                      ? { background: `${accent}55`, outlineColor: accent, boxShadow: `0 0 0 2px ${accent}` }
+                      : undefined
+                  }
                 >
                   {['😞', '😕', '😐', '🙂', '😄'][n - 1]}
                 </button>
@@ -104,10 +135,14 @@ export function DevPessoal() {
               <button
                 onClick={() => {
                   if (!gratitudeText.trim()) return
-                  setGratitude((g) => [{ id: uid('g'), text: gratitudeText, date: todayISO() }, ...g])
+                  setGratitude((g) => [
+                    { id: uid('g'), text: gratitudeText, date: todayISO() },
+                    ...g,
+                  ])
                   setGratitudeText('')
                 }}
-                className="rounded-2xl bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-600 hover:scale-105"
+                className="rounded-2xl px-3 py-2 text-sm font-bold text-[#1F2937] hover:scale-105"
+                style={{ background: accent }}
               >
                 Add
               </button>
@@ -124,7 +159,7 @@ export function DevPessoal() {
 
         <div className="bento-card p-5 lg:col-span-6">
           <div className="mb-3 flex items-center gap-2">
-            <BookMarked size={18} className="text-violet-500" />
+            <BookMarked size={18} style={{ color: accent }} />
             <h3 className="font-semibold text-slate-800">Lista de Leituras</h3>
           </div>
           <div className="space-y-3">
@@ -133,7 +168,9 @@ export function DevPessoal() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-slate-800">{b.title}</p>
-                    <p className="text-xs text-slate-400">{b.author} · {b.status}</p>
+                    <p className="text-xs text-slate-400">
+                      {b.author} · {b.status}
+                    </p>
                   </div>
                   <div className="flex gap-0.5">
                     {Array.from({ length: 5 }, (_, i) => (
@@ -152,7 +189,8 @@ export function DevPessoal() {
                         {b.pagesRead}/{b.totalPages} págs
                       </span>
                       <button
-                        className="text-violet-600"
+                        className="font-semibold"
+                        style={{ color: accent }}
                         onClick={() =>
                           setBooks((list) =>
                             list.map((x) =>
@@ -168,8 +206,11 @@ export function DevPessoal() {
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-white">
                       <div
-                        className="h-full rounded-full bg-violet-500"
-                        style={{ width: `${(b.pagesRead / b.totalPages) * 100}%` }}
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(b.pagesRead / b.totalPages) * 100}%`,
+                          background: accent,
+                        }}
                       />
                     </div>
                   </div>
@@ -204,13 +245,17 @@ export function DevPessoal() {
               setJournalTitle('')
               setJournalContent('')
             }}
-            className="mt-3 w-full rounded-full bg-gradient-to-r from-[#6C4BFF] to-[#3B82F6] py-2.5 text-sm font-semibold text-white hover:scale-[1.02]"
+            className={`mt-3 w-full ${primaryBtn}`}
           >
             Salvar entrada
           </button>
           <div className="mt-4 space-y-2">
             {journal.slice(0, 3).map((j) => (
-              <div key={j.id} className="rounded-2xl bg-violet-50/50 px-3 py-2">
+              <div
+                key={j.id}
+                className="rounded-2xl px-3 py-2"
+                style={{ background: `${accent}33` }}
+              >
                 <p className="text-sm font-medium text-slate-700">{j.title}</p>
                 <p className="text-xs text-slate-400">{j.date}</p>
               </div>

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Check, Plus, Trash2 } from 'lucide-react'
+import { useModuleStyle } from '../hooks/useModuleStyle'
 import { useCustomization } from '../store/CustomizationStore'
-import { contrastText } from '../data/modules'
+import { contrastText, VIEW_OPTIONS } from '../data/modules'
+import type { ModuleId } from '../types'
 import { uid } from '../utils/format'
+import { ModuleHero } from './ModuleHero'
 import { ViewSwitcher } from './ViewSwitcher'
-import { VIEW_OPTIONS } from '../data/modules'
 
 interface CustomBoardProps {
   moduleId: string
@@ -12,43 +14,54 @@ interface CustomBoardProps {
 
 export function CustomBoard({ moduleId }: CustomBoardProps) {
   const { getModule, customData, updateCustomData, setModuleView } = useCustomization()
+  const { accent, primaryBtn, pageVars, tileClass, surface, panelClass } = useModuleStyle(
+    moduleId as ModuleId,
+    '#D1C4FF',
+  )
   const mod = getModule(moduleId)
   const data = customData[moduleId] ?? { id: moduleId, notes: '', items: [] }
   const [text, setText] = useState('')
   const view = mod?.viewMode ?? 'checklist'
-  const color = mod?.color ?? '#D1C4FF'
-  const ink = contrastText(color)
+  const ink = contrastText(accent)
+  const doneCount = data.items.filter((i) => i.done).length
 
   if (!mod) return null
 
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div style={pageVars} className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <span
-            className="mb-2 inline-flex rounded-full border-2 border-[#1F2937] px-3 py-1 text-xs font-bold shadow-[2px_2px_0_#1F2937]"
-            style={{ background: color, color: ink }}
+            className="mb-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold"
+            style={{ background: accent, color: ink, borderColor: 'rgba(31,41,55,0.2)' }}
           >
             Aba personalizada
           </span>
-          <h2 className="text-3xl font-bold tracking-tight text-[#1F2937]">{mod.label}</h2>
-          <p className="mt-1 text-sm text-slate-500">Crie checklists, notas ou um board simples — do seu jeito.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-[var(--app-fg)]">{mod.label}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Crie checklists, notas ou um board simples — do seu jeito.
+          </p>
         </div>
         <ViewSwitcher
           options={VIEW_OPTIONS.custom}
           value={view}
           onChange={(v) => setModuleView(moduleId, v)}
-          accent={color}
+          accent={accent}
         />
       </div>
 
+      <ModuleHero
+        moduleId={moduleId as ModuleId}
+        fallback={accent}
+        title="Itens"
+        value={`${doneCount}/${data.items.length}`}
+        subtitle={view === 'notas' ? 'Modo notas' : view === 'kanban' ? 'Modo board' : 'Checklist'}
+      />
+
       {view === 'notas' && (
-        <div
-          className="rounded-[32px] border-2 border-[#1F2937] p-5 shadow-[6px_6px_0_#1F2937]"
-          style={{ background: color }}
-        >
+        <div className={`${panelClass} p-5`} style={surface(accent)}>
           <textarea
-            className="min-h-[280px] w-full resize-y rounded-[24px] border-2 border-[#1F2937]/bg-white/80 p-4 text-sm outline-none"
+            className="min-h-[280px] w-full resize-y rounded-[24px] border border-[#1F2937]/15 bg-white/80 p-4 text-sm outline-none"
             placeholder="Escreva suas notas livres aqui..."
             value={data.notes}
             onChange={(e) => updateCustomData(moduleId, { notes: e.target.value })}
@@ -70,15 +83,12 @@ export function CustomBoard({ moduleId }: CustomBoardProps) {
             }}
           >
             <input
-              className="flex-1 rounded-full border-2 border-[#1F2937] bg-white px-4 py-3 text-sm font-medium shadow-[3px_3px_0_#1F2937] outline-none"
+              className="flex-1 rounded-full border border-gray-200 bg-white px-4 py-3 text-sm font-medium outline-none"
               placeholder="Novo item..."
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
-            <button
-              type="submit"
-              className="flex items-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#1F2937] px-4 py-3 text-sm font-bold text-white shadow-[3px_3px_0_#D1C4FF] hover:scale-105"
-            >
+            <button type="submit" className={`flex items-center gap-2 ${primaryBtn}`}>
               <Plus size={16} /> Add
             </button>
           </form>
@@ -88,7 +98,7 @@ export function CustomBoard({ moduleId }: CustomBoardProps) {
               {data.items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-3 rounded-[24px] border-2 border-[#1F2937] bg-white px-4 py-3 shadow-[3px_3px_0_#1F2937]"
+                  className="flex items-center gap-3 rounded-[24px] border border-gray-100 bg-white px-4 py-3 shadow-sm"
                 >
                   <button
                     onClick={() =>
@@ -98,13 +108,16 @@ export function CustomBoard({ moduleId }: CustomBoardProps) {
                         ),
                       })
                     }
-                    className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#1F2937] ${
-                      item.done ? 'bg-[#A5F387]' : 'bg-white'
-                    }`}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#1F2937]/20"
+                    style={{ background: item.done ? accent : 'white' }}
                   >
                     {item.done && <Check size={14} strokeWidth={3} />}
                   </button>
-                  <p className={`flex-1 text-sm font-semibold ${item.done ? 'line-through text-slate-400' : 'text-[#1F2937]'}`}>
+                  <p
+                    className={`flex-1 text-sm font-semibold ${
+                      item.done ? 'line-through text-slate-400' : 'text-[#1F2937]'
+                    }`}
+                  >
                     {item.text}
                   </p>
                   <button
@@ -133,26 +146,28 @@ export function CustomBoard({ moduleId }: CustomBoardProps) {
               ].map((col) => (
                 <div
                   key={col.key}
-                  className="rounded-[28px] border-2 border-[#1F2937] p-4 shadow-[4px_4px_0_#1F2937]"
-                  style={{ background: col.key === 'done' ? '#A5F387' : color }}
+                  className={`${tileClass} p-4`}
+                  style={surface(col.key === 'done' ? '#A5F387' : accent)}
                 >
                   <h3 className="mb-3 text-sm font-bold text-[#1F2937]">{col.label}</h3>
                   <div className="space-y-2">
-                    {data.items.filter((i) => col.filter(i.done)).map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() =>
-                          updateCustomData(moduleId, {
-                            items: data.items.map((i) =>
-                              i.id === item.id ? { ...i, done: !i.done } : i,
-                            ),
-                          })
-                        }
-                        className="w-full rounded-[20px] border-2 border-[#1F2937] bg-white px-3 py-2.5 text-left text-sm font-semibold shadow-[2px_2px_0_#1F2937] hover:scale-[1.01]"
-                      >
-                        {item.text}
-                      </button>
-                    ))}
+                    {data.items
+                      .filter((i) => col.filter(i.done))
+                      .map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() =>
+                            updateCustomData(moduleId, {
+                              items: data.items.map((i) =>
+                                i.id === item.id ? { ...i, done: !i.done } : i,
+                              ),
+                            })
+                          }
+                          className="w-full rounded-[20px] border border-[#1F2937]/10 bg-white/85 px-3 py-2.5 text-left text-sm font-semibold hover:scale-[1.01]"
+                        >
+                          {item.text}
+                        </button>
+                      ))}
                   </div>
                 </div>
               ))}

@@ -11,12 +11,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { useModuleStyle } from '../hooks/useModuleStyle'
 import { useApp } from '../store/AppStore'
 import { formatBRL, isSameMonth } from '../utils/format'
+import { ModuleHero } from './ModuleHero'
 import { SectionTitle } from './ui'
 
 export function Estatisticas() {
   const { transactions, habits, tasks, year, month } = useApp()
+  const { accent, pageVars } = useModuleStyle('estatisticas', '#60A5FA')
 
   const financeSeries = useMemo(() => {
     return Array.from({ length: 6 }, (_, i) => {
@@ -46,9 +49,23 @@ export function Estatisticas() {
     { name: 'Concluído', value: tasks.filter((t) => t.status === 'done').length },
   ]
 
+  const doneTasks = tasks.filter((t) => t.status === 'done').length
+  const bestStreak = Math.max(0, ...habits.map((h) => h.streak))
+
   return (
-    <div>
-      <SectionTitle title="Estatísticas & Análises" subtitle="Produtividade, hábitos e saúde financeira" />
+    <div style={pageVars} className="space-y-5">
+      <SectionTitle
+        title="Estatísticas & Análises"
+        subtitle="Produtividade, hábitos e saúde financeira"
+      />
+
+      <ModuleHero
+        moduleId="estatisticas"
+        fallback="#60A5FA"
+        title="Visão geral"
+        value={`${doneTasks} tasks`}
+        subtitle={`Melhor streak: ${bestStreak} dias`}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <div className="bento-card p-5 lg:col-span-7">
@@ -87,7 +104,7 @@ export function Estatisticas() {
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Bar dataKey="value" fill="#6C4BFF" radius={[12, 12, 0, 0]} />
+                <Bar dataKey="value" fill={accent} radius={[12, 12, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -103,7 +120,7 @@ export function Estatisticas() {
                 <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="streak" name="Streak" fill="#8B5CF6" radius={[10, 10, 0, 0]} />
+                <Bar dataKey="streak" name="Streak" fill={accent} radius={[10, 10, 0, 0]} />
                 <Bar dataKey="checks" name="Check-ins" fill="#3B82F6" radius={[10, 10, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
