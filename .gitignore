@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build output is committed as docs/ for GitHub Pages (branch deploy)
+# Keep docs/assets tracked; ignore nothing here intentionally
+
