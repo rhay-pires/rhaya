@@ -3,7 +3,7 @@ import { BookMarked, Heart, Pause, Play, Plus, Pencil, RotateCcw, Smile, Star, T
 import { useModuleStyle } from '../hooks/useModuleStyle'
 import { useApp } from '../store/AppStore'
 import type { Book } from '../types'
-import { todayISO, uid } from '../utils/format'
+import { todayISO, toLocalISO, uid } from '../utils/format'
 import { ModuleHero } from './ModuleHero'
 import { Modal, PillTabs, SectionTitle } from './ui'
 
@@ -355,7 +355,7 @@ function MeditacaoTab() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      days.push(d.toISOString().slice(0, 10))
+      days.push(toLocalISO(d))
     }
     return days.map((date) => ({ date, entry: moods.find((m) => m.date === date) }))
   }, [moods])

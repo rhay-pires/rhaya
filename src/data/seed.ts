@@ -20,7 +20,7 @@ import type {
   WheelScore,
   WorkTask,
 } from '../types'
-import { todayISO } from '../utils/format'
+import { todayISO, toLocalISO } from '../utils/format'
 
 const today = todayISO()
 
@@ -276,5 +276,5 @@ export const affirmations = [
 function shiftDays(n: number): string {
   const d = new Date()
   d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
+  return toLocalISO(d)
 }

@@ -9,8 +9,16 @@ export function formatBRLHidden(value: number, visible: boolean): string {
   return visible ? formatBRL(value) : 'R$ ••••••'
 }
 
+/** Data local YYYY-MM-DD (evita bug de UTC à noite no Brasil) */
+export function toLocalISO(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
+  return toLocalISO(new Date())
 }
 
 export function uid(prefix = 'id'): string {
@@ -27,6 +35,23 @@ export function greeting(): string {
 export function monthLabel(year: number, month: number): string {
   const d = new Date(year, month, 1)
   return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+}
+
+export function todayLongLabel(): string {
+  return new Date().toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+}
+
+/** Compacto p/ mobile: "dom., 2 de ago." */
+export function todayShortLabel(): string {
+  return new Date().toLocaleDateString('pt-BR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
 }
 
 export function isSameMonth(dateStr: string, year: number, month: number): boolean {
@@ -47,7 +72,7 @@ export const DAILY_QUOTES = [
   'Você não precisa fazer tudo hoje — só o que importa.',
   'Cada real guardado é um passo em direção aos seus sonhos.',
   'Foque no processo e os resultados virão.',
-]
+] as const
 
 export function quoteOfDay(): string {
   const day = Math.floor(Date.now() / 86400000)

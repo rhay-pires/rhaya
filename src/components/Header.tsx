@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { contrastText } from '../data/modules'
 import { useApp } from '../store/AppStore'
 import { useSettings } from '../store/SettingsStore'
-import { greeting, monthLabel } from '../utils/format'
+import { greeting, monthLabel, todayLongLabel, todayShortLabel } from '../utils/format'
 import { Avatar } from './Avatar'
 import { MobileMenuButton } from './Sidebar'
 
@@ -17,11 +17,19 @@ interface HeaderProps {
   moduleLabel?: string
 }
 
+function chipClass(isGlass: boolean, isMinimal: boolean) {
+  if (isGlass) return 'glass-chip text-[var(--app-fg)]'
+  if (isMinimal) return 'soft-chip text-[var(--app-fg)]'
+  return 'border-2 border-[#1F2937] bg-white/80 text-[#1F2937] shadow-[2px_2px_0_#1F2937]'
+}
+
 export function Header({ onOpenMenu, onPersonalizar, onConfig, themeColor, moduleLabel }: HeaderProps) {
   const {
     year,
     month,
     shiftMonth,
+    setYear,
+    setMonth,
     balanceVisible,
     setBalanceVisible,
     notifications,
@@ -31,11 +39,18 @@ export function Header({ onOpenMenu, onPersonalizar, onConfig, themeColor, modul
   const isGlass = settings.visualStyle === 'glass'
   const isMinimal = settings.visualStyle === 'minimal'
   const isSoft = isGlass || isMinimal
+  const now = new Date()
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth()
+  const goToCurrentMonth = () => {
+    setYear(now.getFullYear())
+    setMonth(now.getMonth())
+  }
   const [showNotifs, setShowNotifs] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [panelPos, setPanelPos] = useState({ top: 0, right: 16 })
   const ink = contrastText(themeColor)
+  const chip = chipClass(isGlass, isMinimal)
 
   useEffect(() => {
     if (!showNotifs) return
@@ -80,14 +95,14 @@ export function Header({ onOpenMenu, onPersonalizar, onConfig, themeColor, modul
   }, [showNotifs])
 
   return (
-    <header className="mb-6 space-y-4">
+    <header className="mb-4 md:mb-6">
       <div
         className={
           isGlass
-            ? 'glass-panel relative overflow-hidden rounded-[32px] p-5 md:p-7'
+            ? 'glass-panel relative overflow-hidden rounded-[24px] p-3.5 md:rounded-[32px] md:p-7'
             : isMinimal
-              ? 'soft-panel relative overflow-hidden rounded-[28px] p-5 md:p-7'
-              : 'relative rounded-[32px] border-2 border-[#1F2937] p-5 shadow-[6px_6px_0_#1F2937] md:p-7'
+              ? 'soft-panel relative overflow-hidden rounded-[22px] p-3.5 md:rounded-[28px] md:p-7'
+              : 'relative rounded-[24px] border-2 border-[#1F2937] p-3.5 shadow-[4px_4px_0_#1F2937] md:rounded-[32px] md:p-7 md:shadow-[6px_6px_0_#1F2937]'
         }
         style={
           isGlass
@@ -108,51 +123,50 @@ export function Header({ onOpenMenu, onPersonalizar, onConfig, themeColor, modul
         )}
         {isMinimal && (
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 w-1.5 rounded-l-[28px]"
+            className="pointer-events-none absolute inset-y-0 left-0 w-1.5 rounded-l-[22px] md:rounded-l-[28px]"
             style={{ background: themeColor }}
           />
         )}
         {!isSoft && (
-          <div className="pointer-events-none absolute -right-8 top-0 overflow-hidden text-7xl opacity-20">
+          <div className="pointer-events-none absolute -right-8 top-0 hidden overflow-hidden text-7xl opacity-20 md:block">
             ✨
           </div>
         )}
 
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <MobileMenuButton onClick={onOpenMenu} />
-            <div className="relative">
-              <Avatar
-                url={settings.avatarUrl}
-                initials={settings.avatarInitials}
-                size="lg"
-              />
-              <span
-                className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-[#A5F387] ${
-                  isSoft ? 'border-2 border-white shadow-sm' : 'border-2 border-[#1F2937]'
-                }`}
-              />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-                {greeting()}, {isSoft ? '👋' : '✨'} {settings.displayName}
-              </h1>
-              <p className={`mt-1 text-sm ${isSoft ? 'text-slate-500' : 'opacity-80'}`}>
-                {moduleLabel ? `Módulo: ${moduleLabel}` : 'Seu Life Operating System'}
-              </p>
-            </div>
+        <div className="relative z-10 flex items-center gap-2.5 md:gap-4">
+          <MobileMenuButton onClick={onOpenMenu} />
+
+          {/* Avatar só no desktop */}
+          <div className="relative hidden md:block">
+            <Avatar url={settings.avatarUrl} initials={settings.avatarInitials} size="lg" />
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-[#A5F387] ${
+                isSoft ? 'border-2 border-white shadow-sm' : 'border-2 border-[#1F2937]'
+              }`}
+            />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className={
-                isGlass
-                  ? 'glass-chip flex items-center gap-1 rounded-full px-2 py-1.5 text-[var(--app-fg)]'
-                  : isMinimal
-                    ? 'soft-chip flex items-center gap-1 rounded-full px-2 py-1.5 text-[var(--app-fg)]'
-                    : 'flex items-center gap-1 rounded-full border-2 border-[#1F2937] bg-white/80 px-2 py-1.5 text-[#1F2937] shadow-[2px_2px_0_#1F2937]'
-              }
-            >
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-bold tracking-tight leading-tight md:text-3xl">
+              <span className="md:hidden">
+                {greeting()}, {settings.displayName}
+              </span>
+              <span className="hidden md:inline">
+                {greeting()}, {isSoft ? '👋' : '✨'} {settings.displayName}
+              </span>
+            </h1>
+            <p className={`mt-0.5 truncate text-xs capitalize md:mt-1 md:text-sm ${isSoft ? 'text-slate-500' : 'opacity-75 md:opacity-80'}`}>
+              <span className="md:hidden">{todayShortLabel()}</span>
+              <span className="hidden md:inline">{todayLongLabel()}</span>
+              {moduleLabel ? (
+                <span className="hidden sm:inline">{` · ${moduleLabel}`}</span>
+              ) : null}
+            </p>
+          </div>
+
+          {/* Ações desktop */}
+          <div className="hidden items-center gap-2 md:flex">
+            <div className={`flex items-center gap-1 rounded-full px-2 py-1.5 ${chip}`}>
               <button
                 onClick={() => shiftMonth(-1)}
                 className="rounded-full p-1.5 hover:bg-black/5"
@@ -160,9 +174,14 @@ export function Header({ onOpenMenu, onPersonalizar, onConfig, themeColor, modul
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="min-w-[140px] text-center text-sm font-bold capitalize">
+              <button
+                type="button"
+                onClick={goToCurrentMonth}
+                className="min-w-[140px] text-center text-sm font-bold capitalize hover:underline"
+                title={isCurrentMonth ? 'Mês atual' : 'Voltar para o mês atual'}
+              >
                 {monthLabel(year, month)}
-              </span>
+              </button>
               <button
                 onClick={() => shiftMonth(1)}
                 className="rounded-full p-1.5 hover:bg-black/5"
@@ -171,7 +190,6 @@ export function Header({ onOpenMenu, onPersonalizar, onConfig, themeColor, modul
                 <ChevronRight size={16} />
               </button>
             </div>
-
             {(
               [
                 {
@@ -194,47 +212,49 @@ export function Header({ onOpenMenu, onPersonalizar, onConfig, themeColor, modul
               <button
                 key={btn.label}
                 onClick={btn.onClick}
-                className={
-                  isGlass
-                    ? 'glass-chip rounded-full p-2.5 text-[var(--app-fg)] transition hover:scale-105'
-                    : isMinimal
-                      ? 'soft-chip rounded-full p-2.5 text-[var(--app-fg)] transition hover:scale-105'
-                      : 'rounded-full border-2 border-[#1F2937] bg-white/80 p-2.5 text-[#1F2937] shadow-[2px_2px_0_#1F2937] hover:scale-105'
-                }
+                className={`rounded-full p-2.5 transition hover:scale-105 ${chip}`}
                 aria-label={btn.label}
                 title={btn.label}
               >
                 {btn.icon}
               </button>
             ))}
-
-            <button
-              ref={buttonRef}
-              onClick={() => setShowNotifs((v) => !v)}
-              className={
-                isGlass
-                  ? 'glass-chip relative rounded-full p-2.5 text-[var(--app-fg)] transition hover:scale-105'
-                  : isMinimal
-                    ? 'soft-chip relative rounded-full p-2.5 text-[var(--app-fg)] transition hover:scale-105'
-                    : 'relative rounded-full border-2 border-[#1F2937] bg-white/80 p-2.5 text-[#1F2937] shadow-[2px_2px_0_#1F2937] hover:scale-105'
-              }
-              aria-label="Notificações"
-              aria-expanded={showNotifs}
-            >
-              <Bell size={18} />
-              {notifications.length > 0 && (
-                <span
-                  className={`absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FDA4AF] px-1 text-[10px] font-bold leading-none text-[#1F2937] ${
-                    isSoft ? 'border-2 border-white' : 'border-2 border-[#1F2937]'
-                  }`}
-                >
-                  {notifications.length}
-                </span>
-              )}
-            </button>
           </div>
+
+          {/* Sino — único (mobile + desktop) */}
+          <button
+            ref={buttonRef}
+            onClick={() => setShowNotifs((v) => !v)}
+            className={`relative shrink-0 rounded-full p-2.5 transition hover:scale-105 ${chip}`}
+            aria-label="Notificações"
+            aria-expanded={showNotifs}
+          >
+            <Bell size={18} />
+            {notifications.length > 0 && (
+              <span
+                className={`absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FDA4AF] px-1 text-[10px] font-bold leading-none text-[#1F2937] ${
+                  isSoft ? 'border-2 border-white' : 'border-2 border-[#1F2937]'
+                }`}
+              >
+                {notifications.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* Se o mês foi desviado no desktop, no mobile mostra atalho pra voltar */}
+      {!isCurrentMonth && (
+        <div className="mt-2 flex justify-center md:hidden">
+          <button
+            type="button"
+            onClick={goToCurrentMonth}
+            className={`rounded-full px-4 py-2 text-xs font-bold ${chip}`}
+          >
+            Voltar para {monthLabel(now.getFullYear(), now.getMonth())}
+          </button>
+        </div>
+      )}
 
       {typeof document !== 'undefined' &&
         createPortal(

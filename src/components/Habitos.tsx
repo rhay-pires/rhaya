@@ -22,7 +22,7 @@ import { useModuleStyle } from '../hooks/useModuleStyle'
 import { useApp } from '../store/AppStore'
 import { useCustomization } from '../store/CustomizationStore'
 import type { Habit, ViewMode } from '../types'
-import { todayISO, uid } from '../utils/format'
+import { todayISO, toLocalISO, uid } from '../utils/format'
 import { isHabitDue, WEEKDAY_LABELS } from '../utils/habits'
 import { ModuleHero } from './ModuleHero'
 import { Modal } from './ui'
@@ -64,7 +64,7 @@ function weekAround(center: string) {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start)
     d.setDate(start.getDate() + i)
-    return d.toISOString().slice(0, 10)
+    return toLocalISO(d)
   })
 }
 

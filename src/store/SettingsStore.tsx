@@ -56,8 +56,8 @@ export interface AppSettings {
   dashboardLayoutRev: number
 }
 
-/** Rev atual do layout Padrão (3+card+3). Ao subir, quem ainda está no layout antigo recebe o novo. */
-export const DASHBOARD_LAYOUT_REV = 2
+/** Rev atual do layout Padrão (3+agenda+3). Ao subir, quem ainda está no layout antigo recebe o novo. */
+export const DASHBOARD_LAYOUT_REV = 5
 
 const STORAGE_KEY = 'lifehub-settings-v1'
 
@@ -90,6 +90,7 @@ export const MODULE_MODALITIES: Record<DashboardWidgetId, WidgetModalityDef[]> =
     { id: 'assinaturas', label: 'Assinaturas', description: 'Gasto mensal recorrente' },
   ],
   agenda: [
+    { id: 'proximo', label: 'Próximo', description: 'Só o próximo compromisso' },
     { id: 'overview', label: 'Visão geral', description: 'Semana + próximos' },
     { id: 'proximos', label: 'Próximos', description: 'Lista de compromissos' },
     { id: 'semana', label: 'Semana', description: 'Mini calendário' },
@@ -168,22 +169,34 @@ export function freshWidgets(
 export const DEFAULT_WIDGET_TEMPLATES: Array<
   Pick<DashboardWidgetConfig, 'moduleId' | 'modality' | 'size'>
 > = [
-  /* Fileira 1 — 3 ícones */
   { moduleId: 'financas', modality: 'saldo', size: 'square' },
   { moduleId: 'habitos', modality: 'progresso', size: 'square' },
   { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
-  /* Card full-width */
-  { moduleId: 'agenda', modality: 'overview', size: 'card' },
-  /* Fileira 2 — 3 ícones */
+  { moduleId: 'agenda', modality: 'proximo', size: 'card' },
   { moduleId: 'saude', modality: 'agua', size: 'square' },
   { moduleId: 'habitos', modality: 'streak', size: 'square' },
   { moduleId: 'devpessoal', modality: 'humor', size: 'square' },
 ]
 
+/** Layout ainda mais cheio — agenda em visão geral */
+const COMPLETE_WIDGET_TEMPLATES: Array<
+  Pick<DashboardWidgetConfig, 'moduleId' | 'modality' | 'size'>
+> = [
+  { moduleId: 'financas', modality: 'saldo', size: 'square' },
+  { moduleId: 'habitos', modality: 'progresso', size: 'square' },
+  { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
+  { moduleId: 'agenda', modality: 'overview', size: 'card' },
+  { moduleId: 'saude', modality: 'agua', size: 'square' },
+  { moduleId: 'habitos', modality: 'streak', size: 'square' },
+  { moduleId: 'devpessoal', modality: 'humor', size: 'square' },
+  { moduleId: 'metas', modality: 'media', size: 'square' },
+  { moduleId: 'estudos', modality: 'media', size: 'square' },
+]
+
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetConfig[] =
   freshWidgets(DEFAULT_WIDGET_TEMPLATES)
 
-export type DashboardPresetId = 'padrao' | 'compacto' | 'essencial'
+export type DashboardPresetId = 'padrao' | 'compacto' | 'completo'
 
 export const DASHBOARD_PRESETS: {
   id: DashboardPresetId
@@ -194,13 +207,13 @@ export const DASHBOARD_PRESETS: {
   {
     id: 'padrao',
     label: 'Padrão',
-    description: '3 ícones → agenda → 3 ícones (água, streak, humor)',
+    description: '3 ícones → agenda → água, streak e humor',
     widgets: DEFAULT_WIDGET_TEMPLATES,
   },
   {
     id: 'compacto',
     label: 'Compacto',
-    description: '9 ícones em 3 fileiras — visão rápida do dia',
+    description: 'Só ícones em fileiras — visão rápida, sem cards',
     widgets: [
       { moduleId: 'financas', modality: 'saldo', size: 'square' },
       { moduleId: 'agenda', modality: 'hoje', size: 'square' },
@@ -208,21 +221,13 @@ export const DASHBOARD_PRESETS: {
       { moduleId: 'saude', modality: 'agua', size: 'square' },
       { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
       { moduleId: 'metas', modality: 'media', size: 'square' },
-      { moduleId: 'devpessoal', modality: 'humor', size: 'square' },
-      { moduleId: 'estudos', modality: 'media', size: 'square' },
-      { moduleId: 'saude', modality: 'sono', size: 'square' },
     ],
   },
   {
-    id: 'essencial',
-    label: 'Essencial',
-    description: '3 ícones + agenda em card',
-    widgets: [
-      { moduleId: 'financas', modality: 'saldo', size: 'square' },
-      { moduleId: 'habitos', modality: 'progresso', size: 'square' },
-      { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
-      { moduleId: 'agenda', modality: 'overview', size: 'card' },
-    ],
+    id: 'completo',
+    label: 'Completo',
+    description: 'Agenda completa + 9 métricas em ícones',
+    widgets: COMPLETE_WIDGET_TEMPLATES,
   },
 ]
 
@@ -394,6 +399,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveJSON(STORAGE_KEY, settings)
   }, [settings])
+
+  // Garante migração mesmo com HMR / sessão já aberta (useState init não roda de novo)
+  useEffect(() => {
+    if (settings.dashboardLayoutRev >= DASHBOARD_LAYOUT_REV) return
+    setSettings((s) => ({
+      ...s,
+      dashboardWidgets: freshWidgets(DEFAULT_WIDGET_TEMPLATES),
+      dashboardLayoutRev: DASHBOARD_LAYOUT_REV,
+    }))
+  }, [settings.dashboardLayoutRev])
 
   useEffect(() => {
     const apply = () => setResolvedTheme(resolveTheme(settings.themeMode))

@@ -6,7 +6,7 @@ import { useModuleStyle } from '../hooks/useModuleStyle'
 import { useApp } from '../store/AppStore'
 import { useCustomization } from '../store/CustomizationStore'
 import type { Appointment, Priority, ViewMode } from '../types'
-import { todayISO, uid } from '../utils/format'
+import { todayISO, toLocalISO, uid } from '../utils/format'
 import { ModuleHero } from './ModuleHero'
 import { EmptyState, Modal, PillTabs, SectionTitle } from './ui'
 import { ViewSwitcher } from './ViewSwitcher'
@@ -397,7 +397,7 @@ function CalendarioTab({ onEdit }: { onEdit: (a: Appointment) => void }) {
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setDate(d.getDate() + i)
-    return d.toISOString().slice(0, 10)
+    return toLocalISO(d)
   })
 
   const selectedAppts = (byDate[selected] ?? []).sort((a, b) => a.time.localeCompare(b.time))

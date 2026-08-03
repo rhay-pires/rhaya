@@ -7,7 +7,6 @@ import {
   Briefcase,
   CalendarDays,
   Check,
-  CheckSquare,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -28,6 +27,7 @@ import {
   Target,
   Trash2,
   Wallet,
+  X,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
@@ -46,8 +46,7 @@ import {
   type WidgetSize,
 } from '../store/SettingsStore'
 import type { ModuleId } from '../types'
-import { formatBRLHidden, isSameMonth, quoteOfDay, todayISO, uid } from '../utils/format'
-import { isHabitDue } from '../utils/habits'
+import { formatBRLHidden, isSameMonth, quoteOfDay, toLocalISO, todayISO, uid } from '../utils/format'
 import { Modal } from './ui'
 
 function weekAround(center: string) {
@@ -57,7 +56,7 @@ function weekAround(center: string) {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start)
     d.setDate(start.getDate() + i)
-    return d.toISOString().slice(0, 10)
+    return toLocalISO(d)
   })
 }
 
@@ -117,7 +116,6 @@ export function Dashboard() {
     month,
     toggleHabit,
     health,
-    setHealth,
     lifeGoals,
     subjects,
     books,
@@ -151,6 +149,7 @@ export function Dashboard() {
   const [addModality, setAddModality] = useState('overview')
   const [addSize, setAddSize] = useState<WidgetSize>('square')
   const [quickModal, setQuickModal] = useState<'despesa' | 'compromisso' | 'tarefa' | null>(null)
+  const [fabOpen, setFabOpen] = useState(false)
 
   const today = todayISO()
   const week = useMemo(() => weekAround(today), [today])
@@ -217,17 +216,6 @@ export function Dashboard() {
   const savedGoals = financialGoals.reduce((s, g) => s + g.currentAmount, 0)
   const moodEmoji = moodToday ? ['😞', '😕', '😐', '🙂', '😄'][moodToday.mood - 1] : '—'
 
-  const nextApptToday = appointments
-    .filter((a) => a.date === today && !a.done)
-    .sort((a, b) => a.time.localeCompare(b.time))[0]
-  const firstPendingHabitToday = habits.find(
-    (h) => isHabitDue(h, today) && !h.completedDates.includes(today),
-  )
-  const focusTask =
-    tasks.find((t) => t.status !== 'done' && t.dueDate < today) ??
-    tasks.find((t) => t.status !== 'done' && t.dueDate === today)
-  const isTaskOverdue = !!focusTask && focusTask.dueDate < today && focusTask.status !== 'done'
-
   const moduleColor = (id: DashboardWidgetId) => getModule(id)?.color ?? '#D1C4FF'
   const moduleLabel = (id: DashboardWidgetId) => getModule(id)?.label ?? id
   const openModule = (id: ModuleId) => navigate(id)
@@ -257,6 +245,8 @@ export function Dashboard() {
       return { Icon, label: 'Finanças', value: formatBRLHidden(totalBalance, balanceVisible) }
     }
     if (moduleId === 'agenda') {
+      if (modality === 'proximo')
+        return { Icon, label, value: upcoming[0]?.time ?? '—' }
       if (modality === 'hoje') return { Icon, label, value: String(todayAppts.length) }
       if (modality === 'semana')
         return {
@@ -333,7 +323,7 @@ export function Dashboard() {
           className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
           style={surfaceStyle(color)}
         >
-          <WidgetHeader Icon={data.Icon} label={modTitle} />
+          <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
           <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
         </button>
       )
@@ -361,6 +351,72 @@ export function Dashboard() {
     }
 
     if (w.moduleId === 'agenda') {
+      // Card médio: módulo Agenda + próximos compromissos
+      if (mod === 'proximo') {
+        const list = upcoming.slice(0, 3)
+        return (
+          <div
+            className="overflow-hidden rounded-[28px] border-2 border-[#1F2937] shadow-[4px_4px_0_#1F2937] ink-surface"
+            style={surfaceStyle(color)}
+          >
+            <button type="button" onClick={() => openModule('agenda')} className="w-full text-left">
+              <WidgetHeader
+                Icon={CalendarDays}
+                page={label}
+                label="Próximos"
+                subtitle={
+                  upcoming.length
+                    ? `${upcoming.length} na fila`
+                    : 'Nada agendado'
+                }
+                color={color}
+              />
+            </button>
+            <div className="space-y-2 px-3 pb-4">
+              {list.length === 0 ? (
+                <p className="rounded-[18px] border-2 border-dashed border-[#1F2937]/20 bg-white/50 py-5 text-center text-sm text-[#1F2937]/50">
+                  Agenda livre por agora
+                </p>
+              ) : (
+                list.map((a) => {
+                  const when = new Date(a.date + 'T12:00:00')
+                  const dayLabel =
+                    a.date === today
+                      ? 'Hoje'
+                      : when.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' })
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => openModule('agenda')}
+                      className="flex w-full items-center gap-3 rounded-[18px] border-2 border-[#1F2937]/15 bg-white/75 px-2.5 py-2.5 text-left transition hover:bg-white"
+                    >
+                      <span className="flex min-w-[3.25rem] flex-col items-center justify-center rounded-[14px] border-2 border-[#1F2937]/10 bg-white px-2 py-1.5">
+                        <span className="text-[9px] font-bold uppercase text-[#1F2937]/55">
+                          {dayLabel}
+                        </span>
+                        <span className="text-sm font-bold tabular-nums text-[#1F2937]">
+                          {a.time}
+                        </span>
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-[#1F2937]">{a.title}</p>
+                        {a.priority && (
+                          <span className="mt-0.5 text-[10px] font-bold capitalize text-[#1F2937]/50">
+                            {a.priority}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronRight size={16} strokeWidth={2.5} className="shrink-0 text-[#1F2937]/35" />
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )
+      }
+
       const showWeek = mod === 'overview' || mod === 'semana'
       const showList = mod === 'overview' || mod === 'proximos' || mod === 'hoje'
       const list = mod === 'hoje' ? todayAppts.slice(0, 3) : upcoming
@@ -376,7 +432,13 @@ export function Dashboard() {
           style={surfaceStyle(color)}
         >
           <button type="button" onClick={() => openModule('agenda')} className="w-full text-left">
-            <WidgetHeader Icon={CalendarDays} label={title} subtitle={subtitle} />
+            <WidgetHeader
+              Icon={CalendarDays}
+              page={mod === 'overview' ? undefined : label}
+              label={title}
+              subtitle={subtitle}
+              color={color}
+            />
           </button>
 
           {showWeek && (
@@ -495,7 +557,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
           </button>
         )
@@ -510,8 +572,10 @@ export function Dashboard() {
           <button type="button" onClick={() => openModule('habitos')} className="w-full text-left">
             <WidgetHeader
               Icon={Zap}
+              page={mod === 'overview' ? undefined : label}
               label={mod === 'overview' ? label : modTitle}
               subtitle={`${habitsDone}/${habits.length} hoje · ${habitPct}%`}
+              color={color}
               trailing={
                 <span className="flex items-center gap-1 rounded-full border-2 border-[#1F2937] bg-[#FFF7ED] px-2 py-1 text-xs font-bold text-orange-600">
                   <Flame size={12} /> {bestStreak}
@@ -568,7 +632,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] p-4 text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="mt-2 text-3xl font-bold text-[#1F2937]">{data.value}</p>
           </button>
         )
@@ -600,7 +664,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={Target} label={modTitle} />
+            <WidgetHeader Icon={Target} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{avgLifeGoal}%</p>
           </button>
         )
@@ -643,7 +707,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={BookOpen} label={modTitle} />
+            <WidgetHeader Icon={BookOpen} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{avgSubject}%</p>
           </button>
         )
@@ -682,7 +746,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
           </button>
         )
@@ -716,7 +780,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={Sparkles} label={modTitle} />
+            <WidgetHeader Icon={Sparkles} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-sm font-medium text-[#1F2937]">“{quoteOfDay()}”</p>
           </button>
         )
@@ -730,7 +794,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
           </button>
         )
@@ -766,7 +830,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={data.Icon} label={modTitle} />
+            <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
           </button>
         )
@@ -797,7 +861,7 @@ export function Dashboard() {
             className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
             style={surfaceStyle(color)}
           >
-            <WidgetHeader Icon={Clapperboard} label={modTitle} />
+            <WidgetHeader Icon={Clapperboard} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{contentOpen.length}</p>
           </button>
         )
@@ -840,6 +904,7 @@ export function Dashboard() {
 
   function renderSquare(w: DashboardWidgetConfig) {
     const color = moduleColor(w.moduleId)
+    const pageName = moduleLabel(w.moduleId)
     const data = squareData(w)
     return (
       <button
@@ -847,20 +912,23 @@ export function Dashboard() {
         onClick={() => openModule(w.moduleId)}
         className={
           isSoft
-            ? `${isGlass ? 'glass-widget' : 'ink-surface'} flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-[24px] p-2.5 text-center transition hover:scale-[1.03] sm:gap-2 sm:p-3`
-            : 'flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-[24px] border-2 border-[#1F2937] p-2.5 text-center shadow-[3px_3px_0_#1F2937] ink-surface transition hover:scale-[1.03] sm:gap-2 sm:p-3'
+            ? `${isGlass ? 'glass-widget' : 'ink-surface'} flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[24px] p-2 text-center transition hover:scale-[1.03] sm:gap-1.5 sm:p-3`
+            : 'flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[24px] border-2 border-[#1F2937] p-2 text-center shadow-[3px_3px_0_#1F2937] ink-surface transition hover:scale-[1.03] sm:gap-1.5 sm:p-3'
         }
         style={surfaceStyle(color)}
       >
+        <p className="max-w-full truncate px-0.5 text-[9px] font-bold uppercase tracking-wide text-[#1F2937]/55 sm:text-[10px]">
+          {pageName}
+        </p>
         <span
           className={
             isSoft
-              ? `${isGlass ? 'glass-accent' : 'soft-accent'} flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-11 sm:w-11`
-              : 'flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-white sm:h-11 sm:w-11 sm:rounded-[16px]'
+              ? `${isGlass ? 'glass-accent' : 'soft-accent'} flex h-8 w-8 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10`
+              : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-white sm:h-10 sm:w-10 sm:rounded-[16px]'
           }
           style={iconBadgeStyle(color)}
         >
-          <data.Icon size={20} className="text-[#1F2937]" />
+          <data.Icon size={18} className="text-[#1F2937]" />
         </span>
         <p className="max-w-full truncate px-0.5 text-sm font-bold leading-tight text-[#1F2937] sm:text-lg">
           {data.value}
@@ -886,7 +954,7 @@ export function Dashboard() {
             })}
           </p>
           <h2 className="mt-0.5 text-3xl font-bold tracking-tight text-[var(--app-fg)]">Seu dia</h2>
-          <p className="mt-1 text-xs text-slate-400">Quadrado ou card · escolha a modalidade</p>
+          <p className="mt-1 text-xs text-slate-400">O essencial do dia, no seu jeito</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -923,99 +991,6 @@ export function Dashboard() {
             🔥 {bestStreak}
           </span>
         </div>
-      </div>
-
-      <div className="mb-4">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Foco de hoje</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <button
-            type="button"
-            onClick={() => openModule('agenda')}
-            className="flex flex-col gap-1 rounded-[20px] border-2 border-[#1F2937] bg-white p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02]"
-          >
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              <CalendarDays size={12} /> Próximo hoje
-            </span>
-            <span className="truncate text-sm font-bold text-[#1F2937]">
-              {nextApptToday ? `${nextApptToday.time} · ${nextApptToday.title}` : 'Nada agendado'}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openModule('habitos')}
-            className="flex flex-col gap-1 rounded-[20px] border-2 border-[#1F2937] bg-white p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02]"
-          >
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              <Zap size={12} /> Hábito pendente
-            </span>
-            <span className="truncate text-sm font-bold text-[#1F2937]">
-              {firstPendingHabitToday ? firstPendingHabitToday.name : 'Tudo feito 🎉'}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openModule('trabalho')}
-            className={`flex flex-col gap-1 rounded-[20px] border-2 p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02] ${
-              isTaskOverdue ? 'border-rose-400 bg-rose-50' : 'border-[#1F2937] bg-white'
-            }`}
-          >
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              <CheckSquare size={12} /> {isTaskOverdue ? 'Tarefa atrasada' : 'Tarefa de hoje'}
-            </span>
-            <span className="truncate text-sm font-bold text-[#1F2937]">
-              {focusTask ? focusTask.title : 'Sem pendências'}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openModule('saude')}
-            className="flex flex-col gap-1 rounded-[20px] border-2 border-[#1F2937] bg-white p-3 text-left shadow-[3px_3px_0_#1F2937] transition hover:scale-[1.02]"
-          >
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              <Droplets size={12} /> Água
-            </span>
-            <span className="flex items-center justify-between gap-2">
-              <span className="text-sm font-bold text-[#1F2937]">{waterPct}%</span>
-              <span
-                role="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setHealth((h) => ({ ...h, waterMl: h.waterMl + 250 }))
-                }}
-                className="rounded-full border-2 border-[#1F2937] bg-[#DFF3FF] px-2 py-0.5 text-[10px] font-bold text-[#1F2937]"
-              >
-                +250ml
-              </span>
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
-        <button
-          type="button"
-          onClick={() => setQuickModal('despesa')}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-[#FDA4AF] px-3.5 py-2.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]"
-        >
-          <Plus size={14} /> Despesa
-        </button>
-        <button
-          type="button"
-          onClick={() => setQuickModal('compromisso')}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-[#BAE6FD] px-3.5 py-2.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]"
-        >
-          <Plus size={14} /> Compromisso
-        </button>
-        <button
-          type="button"
-          onClick={() => setQuickModal('tarefa')}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-[#A5F387] px-3.5 py-2.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]"
-        >
-          <Plus size={14} /> Tarefa
-        </button>
       </div>
 
       <div className="space-y-4">
@@ -1375,6 +1350,52 @@ export function Dashboard() {
           }}
         />
       </Modal>
+
+      {/* FAB — atalhos rápidos sem poluir a home */}
+      <div className="pointer-events-none fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2 md:bottom-8 md:right-8">
+        {fabOpen && (
+          <div className="pointer-events-auto mb-1 flex flex-col items-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setFabOpen(false)
+                setQuickModal('despesa')
+              }}
+              className="flex min-h-11 items-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#FDA4AF] px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-[3px_3px_0_#1F2937]"
+            >
+              Despesa
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFabOpen(false)
+                setQuickModal('compromisso')
+              }}
+              className="flex min-h-11 items-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#BAE6FD] px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-[3px_3px_0_#1F2937]"
+            >
+              Compromisso
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFabOpen(false)
+                setQuickModal('tarefa')
+              }}
+              className="flex min-h-11 items-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#A5F387] px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-[3px_3px_0_#1F2937]"
+            >
+              Tarefa
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          aria-label={fabOpen ? 'Fechar atalhos' : 'Atalhos rápidos'}
+          onClick={() => setFabOpen((o) => !o)}
+          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#1F2937] bg-[#1F2937] text-white shadow-[4px_4px_0_#FFEA5D] transition hover:scale-105"
+        >
+          {fabOpen ? <X size={24} /> : <Plus size={24} />}
+        </button>
+      </div>
     </div>
   )
 }
@@ -1555,12 +1576,15 @@ function WidgetHeader({
   Icon,
   label,
   subtitle,
+  page,
   color,
   trailing,
 }: {
   Icon: LucideIcon
   label: string
   subtitle?: string
+  /** Nome da página/módulo (ex.: Finanças) — aparece acima do título */
+  page?: string
   color?: string
   trailing?: ReactNode
 }) {
@@ -1574,6 +1598,11 @@ function WidgetHeader({
           <Icon size={18} className="text-[#1F2937]" />
         </span>
         <div className="min-w-0">
+          {page && page !== label && (
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#1F2937]/50">
+              {page}
+            </p>
+          )}
           <h3 className="truncate font-bold leading-tight text-[#1F2937]">{label}</h3>
           {subtitle && (
             <p className="mt-0.5 truncate text-xs font-medium text-[#1F2937]/60">{subtitle}</p>

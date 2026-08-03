@@ -1,4 +1,5 @@
 import type { Habit } from '../types'
+import { toLocalISO } from './format'
 
 /** Dias da semana em que o hábito deve ser feito. Vazio/undefined = todo dia. */
 export function habitWeekdays(habit: Pick<Habit, 'weekdays'>): number[] {
@@ -17,7 +18,7 @@ export function computeStreak(habit: Pick<Habit, 'weekdays' | 'completedDates'>)
   const d = new Date()
   for (let i = 0; i < 400; i++) {
     const dow = d.getDay()
-    const iso = d.toISOString().slice(0, 10)
+    const iso = toLocalISO(d)
     if (weekdays.includes(dow)) {
       if (habit.completedDates.includes(iso)) {
         streak++
