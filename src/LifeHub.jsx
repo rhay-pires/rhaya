@@ -6,9 +6,11 @@ import {
   BarChart3, Film, Droplet, Moon, Dumbbell, Utensils, Smile, PenLine, Star,
   Pause, Play, Check, ArrowUpRight, ArrowDownRight, Trash2, Download, Upload,
   Briefcase, Clock, Flame, BookMarked, Receipt, PiggyBank, Ban, ShoppingBag,
-  LayoutGrid, GripVertical, Sun
+  LayoutGrid, GripVertical, Sun, Cloud, LogIn, LogOut, Loader2
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, LineChart, Line } from "recharts";
+import { supabase, isSupabaseConfigured } from "./lib/supabase";
+import { loadLocalDb, saveLocalDb, pushCloudDb, hydrateFromCloud } from "./lib/cloudSync";
 
 /* ---------------------------------------------------------
    LifeHub — Second Brain pessoal & profissional (pt-BR)
@@ -1224,8 +1226,13 @@ function Conteudo({ db, setDb }) {
 
 /* ---------------- Config ---------------- */
 
-function ConfigDrawer({ open, onClose, db, setDb }) {
+function ConfigDrawer({ open, onClose, db, setDb, session, syncStatus, onAuthChange }) {
   const fileRef = useRef(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMsg, setAuthMsg] = useState("");
+
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1243,9 +1250,127 @@ function ConfigDrawer({ open, onClose, db, setDb }) {
     reader.readAsText(file);
   };
 
+  const runAuth = async (mode) => {
+    if (!supabase) {
+      setAuthMsg("Supabase não configurado.");
+      return;
+    }
+    if (!email.trim() || password.length < 6) {
+      setAuthMsg("Use e-mail válido e senha com pelo menos 6 caracteres.");
+      return;
+    }
+    setAuthBusy(true);
+    setAuthMsg("");
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+        if (error) throw error;
+        setAuthMsg("Conta criada. Se pedir confirmação, abra o e-mail — depois entre com a mesma senha.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+        setAuthMsg("");
+        setPassword("");
+      }
+      onAuthChange?.();
+    } catch (err) {
+      setAuthMsg(err?.message || "Falha na autenticação.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    if (!supabase) return;
+    setAuthBusy(true);
+    try {
+      await supabase.auth.signOut();
+      setAuthMsg("Saiu da conta. Os dados deste aparelho continuam salvos localmente.");
+      onAuthChange?.();
+    } catch (err) {
+      setAuthMsg(err?.message || "Não foi possível sair.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   return (
     <Modal open={open} onClose={onClose} title="Configurações">
       <div className="space-y-5">
+        <div className="rounded-2xl p-4 space-y-3" style={{ background: C.bg }}>
+          <div className="flex items-center gap-2">
+            <Cloud size={16} style={{ color: C.ink }} />
+            <p className="text-sm font-bold" style={{ color: C.ink }}>Sync PC ↔ iPhone</p>
+          </div>
+          {!isSupabaseConfigured ? (
+            <p className="text-xs" style={{ color: C.inkSoft }}>Configure as variáveis VITE_SUPABASE_* para ativar a nuvem.</p>
+          ) : session?.user ? (
+            <>
+              <p className="text-xs" style={{ color: C.inkSoft }}>
+                Conectada como <span className="font-semibold" style={{ color: C.ink }}>{session.user.email}</span>
+              </p>
+              <p className="text-[11px]" style={{ color: C.inkSoft }}>
+                {syncStatus === "syncing" && "Sincronizando…"}
+                {syncStatus === "ok" && "Dados sincronizados na nuvem."}
+                {syncStatus === "error" && "Falha ao sincronizar — tente de novo em instantes."}
+                {syncStatus === "idle" && "Pronto para sincronizar."}
+              </p>
+              <PressBtn
+                onClick={signOut}
+                disabled={authBusy}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold"
+                style={{ background: "#fff", color: C.ink }}
+              >
+                {authBusy ? <Loader2 size={15} className="animate-spin" /> : <LogOut size={15} />}
+                Sair
+              </PressBtn>
+            </>
+          ) : (
+            <>
+              <p className="text-xs" style={{ color: C.inkSoft }}>
+                Crie uma conta (ou entre) com o mesmo e-mail no PC e no iPhone para ter os mesmos dados.
+              </p>
+              <input
+                type="email"
+                autoComplete="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+                style={{ background: "#fff" }}
+              />
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="senha (mín. 6)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+                style={{ background: "#fff" }}
+              />
+              <div className="flex gap-2">
+                <PressBtn
+                  onClick={() => runAuth("login")}
+                  disabled={authBusy}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold"
+                  style={{ background: C.ink, color: "#fff" }}
+                >
+                  {authBusy ? <Loader2 size={15} className="animate-spin" /> : <LogIn size={15} />}
+                  Entrar
+                </PressBtn>
+                <PressBtn
+                  onClick={() => runAuth("signup")}
+                  disabled={authBusy}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold"
+                  style={{ background: "#fff", color: C.ink }}
+                >
+                  Criar conta
+                </PressBtn>
+              </div>
+            </>
+          )}
+          {authMsg && <p className="text-xs" style={{ color: C.inkSoft }}>{authMsg}</p>}
+        </div>
         <div>
           <label className="text-xs font-semibold" style={{ color: C.inkSoft }}>Nome de exibição</label>
           <input value={db.user.name} onChange={(e) => setDb((p) => ({ ...p, user: { ...p.user, name: e.target.value } }))} className="w-full mt-1 px-4 py-3 rounded-2xl text-sm outline-none" style={{ background: C.bg }} />
@@ -1296,7 +1421,12 @@ export default function LifeHub() {
   const [configOpen, setConfigOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
   const [quickAdd, setQuickAdd] = useState(null);
+  const [session, setSession] = useState(null);
+  const [syncStatus, setSyncStatus] = useState("idle");
   const loadedRef = useRef(false);
+  const cloudReadyRef = useRef(false);
+  const dbRef = useRef(db);
+  dbRef.current = db;
 
   useEffect(() => {
     const onResize = () => setIsDesktop(window.innerWidth >= 1024);
@@ -1305,26 +1435,65 @@ export default function LifeHub() {
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("lifehub_db_v1");
-      if (raw) setDb(JSON.parse(raw));
-    } catch (e) {
-      /* first run, keep seed */
-    }
+    const local = loadLocalDb();
+    if (local) setDb(local);
     loadedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return undefined;
+    let cancelled = false;
+
+    const applySession = async (next) => {
+      setSession(next);
+      if (!next?.user) {
+        cloudReadyRef.current = false;
+        setSyncStatus("idle");
+        return;
+      }
+      setSyncStatus("syncing");
+      try {
+        const { db: hydrated } = await hydrateFromCloud(next.user.id, dbRef.current);
+        if (!cancelled) {
+          setDb(hydrated);
+          cloudReadyRef.current = true;
+          setSyncStatus("ok");
+        }
+      } catch {
+        if (!cancelled) {
+          cloudReadyRef.current = true;
+          setSyncStatus("error");
+        }
+      }
+    };
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) applySession(data.session);
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      applySession(next);
+    });
+
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
     if (!loadedRef.current) return;
     const t = setTimeout(() => {
-      try {
-        localStorage.setItem("lifehub_db_v1", JSON.stringify(db));
-      } catch (e) {
-        /* quota / private mode */
+      saveLocalDb(db);
+      if (session?.user && cloudReadyRef.current) {
+        setSyncStatus("syncing");
+        pushCloudDb(session.user.id, db)
+          .then(() => setSyncStatus("ok"))
+          .catch(() => setSyncStatus("error"));
       }
-    }, 400);
+    }, 600);
     return () => clearTimeout(t);
-  }, [db]);
+  }, [db, session]);
 
   const goto = (id) => { setRoute(id); setMoreOpen(false); window.scrollTo(0, 0); };
   const currentModule = MODULES.find((m) => m.id === route);
@@ -1463,7 +1632,27 @@ export default function LifeHub() {
         </PressBtn>
       </Modal>
 
-      <ConfigDrawer open={configOpen} onClose={() => setConfigOpen(false)} db={db} setDb={setDb} />
+      <ConfigDrawer
+        open={configOpen}
+        onClose={() => setConfigOpen(false)}
+        db={db}
+        setDb={setDb}
+        session={session}
+        syncStatus={syncStatus}
+      />
+
+      {!session && isSupabaseConfigured && (
+        <div className="fixed left-4 right-4 z-50 sm:left-auto sm:right-6 sm:w-80" style={{ bottom: isDesktop ? "24px" : "100px" }}>
+          <PressBtn
+            onClick={() => setConfigOpen(true)}
+            className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 shadow-lg text-left"
+            style={{ background: C.ink, color: "#fff" }}
+          >
+            <Cloud size={18} />
+            <span className="text-sm font-semibold leading-snug">Entre pra sincronizar PC e iPhone</span>
+          </PressBtn>
+        </div>
+      )}
     </div>
   );
 }

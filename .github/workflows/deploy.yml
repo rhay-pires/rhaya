@@ -35,6 +35,9 @@ jobs:
         run: npm ci
 
       - name: Build for Actions (site root /rhaya/)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           npx vite build --outDir dist-pages --base /rhaya/
           if [ -f dist-pages/dev.html ]; then mv dist-pages/dev.html dist-pages/index.html; fi
