@@ -1,9 +1,10 @@
 import { supabase, isSupabaseConfigured } from './supabase'
 
-const LOCAL_KEY = 'lifehub_db_v1'
+const LOCAL_KEY = 'lifehub_db_v2'
 
 export function loadLocalDb() {
   try {
+    localStorage.removeItem('lifehub_db_v1')
     const raw = localStorage.getItem(LOCAL_KEY)
     return raw ? JSON.parse(raw) : null
   } catch {

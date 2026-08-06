@@ -65,139 +65,40 @@ const MONTHS = ["janeiro","fevereiro","março","abril","maio","junho","julho","a
 
 function seedDB() {
   return {
-    user: { name: "Rhayanne", handle: "Learning Experience Developer", avatar: "R" },
+    user: { name: "Rhayanne", handle: "", avatar: "R" },
     settings: { theme: "claro", waterGoal: 8, reduceMotion: false, style: "padrao" },
-    water: { current: 5 },
-    habits: [
-      { id: "h1", name: "Beber água ao acordar", period: "manha", done: true, streak: 12 },
-      { id: "h2", name: "Treino de força (30min)", period: "manha", done: false, streak: 4 },
-      { id: "h3", name: "Estudar Sistemas de Informação", period: "tarde", done: true, streak: 8 },
-      { id: "h4", name: "Gravar conteúdo BookTok", period: "tarde", done: false, streak: 2 },
-      { id: "h5", name: "Diário de gratidão", period: "noite", done: false, streak: 21 },
-      { id: "h6", name: "Ler 20 páginas", period: "noite", done: true, streak: 6 },
-    ],
-    agenda: [
-      { id: "a1", date: offsetISO(0), time: "09:00", title: "Reunião — módulo NR-17", type: "trabalho" },
-      { id: "a2", date: offsetISO(0), time: "12:30", title: "Almoço com Marina", type: "pessoal" },
-      { id: "a3", date: offsetISO(0), time: "19:00", title: "Aula — Univesp", type: "estudo" },
-      { id: "a4", date: offsetISO(1), time: "10:00", title: "Gravação vídeo NR-11", type: "trabalho" },
-      { id: "a5", date: offsetISO(2), time: "20:00", title: "Live BookTok", type: "conteudo" },
-      { id: "a6", date: offsetISO(-1), time: "14:00", title: "Sebrae Supernova — mentoria", type: "trabalho" },
-    ],
+    water: { current: 0 },
+    habits: [],
+    agenda: [],
     finance: {
       hideBalance: false,
-      accounts: [
-        { id: "ac1", name: "Nubank", bank: "NU", color: "#8A05BE", balance: 3240.55 },
-        { id: "ac2", name: "Inter", bank: "IN", color: "#FF7A00", balance: 812.10 },
-        { id: "ac3", name: "Carteira PIX", bank: "PX", color: "#2FBF71", balance: 150.00 },
-      ],
-      cards: [
-        { id: "cd1", name: "Nubank Ultravioleta", limit: 4500, used: 1870.32, due: "10", color: "#8A05BE", closes: "03" },
-        { id: "cd2", name: "Inter Gold", limit: 2000, used: 430.00, due: "20", color: "#FF7A00", closes: "13" },
-      ],
-      transactions: [
-        { id: "t1", date: offsetISO(0), desc: "TecnoCursos — salário", category: "Renda", amount: 4200, type: "income", account: "ac1" },
-        { id: "t2", date: offsetISO(-1), desc: "Mensalidade FIAP", category: "Educação", amount: -389, type: "expense", account: "ac1" },
-        { id: "t3", date: offsetISO(-1), desc: "iFood", category: "Alimentação", amount: -52.4, type: "expense", account: "ac1" },
-        { id: "t4", date: offsetISO(-2), desc: "Shopee — achadinhos", category: "Compras", amount: -134.9, type: "expense", account: "cd1" },
-        { id: "t5", date: offsetISO(-2), desc: "Comissão Garimpa.Anne", category: "Renda extra", amount: 96.3, type: "income", account: "ac3" },
-        { id: "t6", date: offsetISO(-3), desc: "Academia", category: "Saúde", amount: -99.9, type: "expense", account: "ac2" },
-        { id: "t7", date: offsetISO(-4), desc: "Uber", category: "Transporte", amount: -38.2, type: "expense", account: "ac1" },
-        { id: "t8", date: offsetISO(-5), desc: "Aluguel", category: "Moradia", amount: -950, type: "expense", account: "ac1" },
-        { id: "t9", date: offsetISO(-6), desc: "Livraria — dark romance", category: "Lazer", amount: -78.5, type: "expense", account: "cd1" },
-      ],
-      goals: [
-        { id: "g1", name: "Reserva de emergência", target: 8000, saved: 3120, color: C.financas },
-        { id: "g2", name: "MacBook para vídeo/design", target: 7500, saved: 1450, color: C.estudos },
-        { id: "g3", name: "Sebrae Supernova — investimento Zenith", target: 3000, saved: 900, color: C.metas },
-      ],
-      subscriptions: [
-        { id: "s1", name: "Netflix", price: 44.9, cycle: "mensal", paused: false, color: "#E50914" },
-        { id: "s2", name: "Spotify", price: 21.9, cycle: "mensal", paused: false, color: "#1DB954" },
-        { id: "s3", name: "Canva Pro", price: 34.9, cycle: "mensal", paused: true, color: "#00C4CC" },
-        { id: "s4", name: "iCloud+", price: 12.9, cycle: "mensal", paused: false, color: "#8E8E93" },
-      ],
-      limits: [
-        { id: "l1", category: "Alimentação", limit: 500, spent: 312 },
-        { id: "l2", category: "Compras", limit: 400, spent: 380 },
-        { id: "l3", category: "Lazer", limit: 250, spent: 178 },
-        { id: "l4", category: "Transporte", limit: 200, spent: 96 },
-      ],
+      accounts: [],
+      cards: [],
+      transactions: [],
+      goals: [],
+      subscriptions: [],
+      limits: [],
     },
-    work: {
-      tasks: [
-        { id: "w1", title: "Finalizar módulo NR-17 mobile", status: "doing" },
-        { id: "w2", title: "Corrigir deploy Netlify — NR-16", status: "todo" },
-        { id: "w3", title: "Roteiro vídeo Protocolo 16", status: "todo" },
-        { id: "w4", title: "Revisar quiz NR-11", status: "done" },
-        { id: "w5", title: "Reunião de alinhamento — pauta", status: "done" },
-        { id: "w6", title: "Estruturar pastas multi-módulo", status: "doing" },
-      ],
-    },
-    goalsOKR: {
-      items: [
-        { id: "o1", title: "Concluir curso FIAP — IA e Computacional", term: "curto", progress: 40, color: C.estudos },
-        { id: "o2", title: "Lançar MVP do Zenith", term: "medio", progress: 55, color: C.metas },
-        { id: "o3", title: "Migrar carreira para tech (dev/produto)", term: "longo", progress: 25, color: C.trabalho },
-        { id: "o4", title: "Chegar a 10k em @rhayar", term: "medio", progress: 18, color: C.conteudo },
-      ],
-    },
-    study: {
-      subjects: [
-        { id: "su1", name: "Sistemas de Informação", progress: 62, color: C.estudos },
-        { id: "su2", name: "FIAP — IA e Computacional", progress: 25, color: C.dashboard },
-        { id: "su3", name: "FIAP — Chatbots", progress: 8, color: C.agenda },
-        { id: "su4", name: "Letras (revisão)", progress: 90, color: C.metas },
-      ],
-      flashcards: [
-        { id: "f1", q: "O que é overfitting?", a: "Quando o modelo decora os dados de treino e generaliza mal." },
-        { id: "f2", q: "Diferença entre HTML semântico e não semântico?", a: "Semântico descreve o significado do conteúdo (ex: <header>, <article>)." },
-        { id: "f3", q: "O que é um SAFE note?", a: "Instrumento de investimento conversível em equity, comum em startups." },
-      ],
-    },
-    health: {
-      sleep: [7.2, 6.5, 8.0, 6.8, 7.5, 8.2, 7.0],
-      workout: [
-        { id: "wk1", name: "Superior — hipertrofia", done: true },
-        { id: "wk2", name: "Inferior — hipertrofia", done: false },
-      ],
-      meals: [
-        { id: "m1", name: "Café da manhã", desc: "Ovos, aveia, café", done: true },
-        { id: "m2", name: "Almoço", desc: "Arroz, feijão, frango, salada", done: true },
-        { id: "m3", name: "Jantar", desc: "—", done: false },
-      ],
-    },
+    work: { tasks: [] },
+    goalsOKR: { items: [] },
+    study: { subjects: [], flashcards: [] },
+    health: { sleep: [], workout: [], meals: [] },
     personalDev: {
       wheel: [
-        { area: "Carreira", score: 7 },
-        { area: "Finanças", score: 6 },
-        { area: "Saúde", score: 5 },
-        { area: "Espiritualidade", score: 8 },
-        { area: "Relacionamentos", score: 7 },
-        { area: "Criatividade", score: 9 },
+        { area: "Carreira", score: 0 },
+        { area: "Finanças", score: 0 },
+        { area: "Saúde", score: 0 },
+        { area: "Espiritualidade", score: 0 },
+        { area: "Relacionamentos", score: 0 },
+        { area: "Criatividade", score: 0 },
       ],
-      mood: "🙂",
-      gratitude: ["Rotina mais organizada", "Progresso no Zenith", "Apoio da família"],
-      journal: [{ id: "j1", date: offsetISO(0), text: "Dia produtivo, avancei no módulo NR-17." }],
-      reading: [
-        { id: "r1", title: "Haunting Adeline", progress: 70 },
-        { id: "r2", title: "Devil's Night", progress: 20 },
-      ],
+      mood: "",
+      gratitude: [],
+      journal: [],
+      reading: [],
     },
-    content: {
-      pipeline: [
-        { id: "c1", title: "Dom Casmurro — defesa da Capitu", stage: "ideia" },
-        { id: "c2", title: "Resenha ACOTAR", stage: "roteiro" },
-        { id: "c3", title: "Achadinhos da semana", stage: "gravar" },
-        { id: "c4", title: "Devil's Night — teoria", stage: "editar" },
-        { id: "c5", title: "Booktok: vilões redimidos", stage: "publicado" },
-      ],
-    },
-    widgets: [
-      { id: "wd1", module: "financas", type: "saldo" },
-      { id: "wd2", module: "estudos", type: "progresso" },
-      { id: "wd3", module: "trabalho", type: "tarefas" },
-    ],
+    content: { pipeline: [] },
+    widgets: [],
   };
 }
 
@@ -328,7 +229,7 @@ function Home({ db, setDb, goto, isDesktop }) {
 
   const week = useMemo(() => Array.from({ length: 7 }, (_, i) => offsetISO(i - 3)), []);
   const habitsDone = db.habits.filter((h) => h.done).length;
-  const habitsPct = Math.round((habitsDone / db.habits.length) * 100);
+  const habitsPct = db.habits.length ? Math.round((habitsDone / db.habits.length) * 100) : 0;
   const waterPct = Math.round((db.water.current / db.settings.waterGoal) * 100);
   const weekProgress = Math.round((habitsPct + waterPct) / 2);
 
@@ -478,16 +379,22 @@ function WidgetCard({ widget, db, goto, onRemove }) {
     const total = db.finance.accounts.reduce((s, a) => s + a.balance, 0);
     content = <><p className="text-xs" style={{ color: C.inkSoft }}>Saldo total</p><p className="text-lg font-bold" style={{ color: C.ink }}>{brl(total)}</p></>;
   } else if (widget.type === "progresso") {
-    const avg = Math.round(db.study.subjects.reduce((s, x) => s + x.progress, 0) / db.study.subjects.length);
+    const avg = db.study.subjects.length
+      ? Math.round(db.study.subjects.reduce((s, x) => s + x.progress, 0) / db.study.subjects.length)
+      : 0;
     content = <><p className="text-xs" style={{ color: C.inkSoft }}>Progresso médio</p><p className="text-lg font-bold" style={{ color: C.ink }}>{avg}%</p></>;
   } else if (widget.type === "tarefas") {
     const doing = db.work.tasks.filter((t) => t.status !== "done").length;
     content = <><p className="text-xs" style={{ color: C.inkSoft }}>Tarefas pendentes</p><p className="text-lg font-bold" style={{ color: C.ink }}>{doing}</p></>;
   } else if (widget.type === "okrs") {
-    const avg = Math.round(db.goalsOKR.items.reduce((s, x) => s + x.progress, 0) / db.goalsOKR.items.length);
+    const avg = db.goalsOKR.items.length
+      ? Math.round(db.goalsOKR.items.reduce((s, x) => s + x.progress, 0) / db.goalsOKR.items.length)
+      : 0;
     content = <><p className="text-xs" style={{ color: C.inkSoft }}>Progresso médio</p><p className="text-lg font-bold" style={{ color: C.ink }}>{avg}%</p></>;
   } else if (widget.type === "sono") {
-    const avg = (db.health.sleep.reduce((s, x) => s + x, 0) / db.health.sleep.length).toFixed(1);
+    const avg = db.health.sleep.length
+      ? (db.health.sleep.reduce((s, x) => s + x, 0) / db.health.sleep.length).toFixed(1)
+      : "0";
     content = <><p className="text-xs" style={{ color: C.inkSoft }}>Média de sono</p><p className="text-lg font-bold" style={{ color: C.ink }}>{avg}h</p></>;
   } else if (widget.type === "pipeline") {
     const n = db.content.pipeline.filter((c) => c.stage !== "publicado").length;
@@ -828,7 +735,7 @@ function Agenda({ db, setDb }) {
 function Habitos({ db, setDb }) {
   const toggle = (id) => setDb((p) => ({ ...p, habits: p.habits.map((h) => h.id === id ? { ...h, done: !h.done, streak: !h.done ? h.streak + 1 : Math.max(0, h.streak - 1) } : h) }));
   const periods = [["manha", "Manhã", Sun], ["tarde", "Tarde", Sparkles], ["noite", "Noite", Moon]];
-  const donePct = Math.round((db.habits.filter(h => h.done).length / db.habits.length) * 100);
+  const donePct = db.habits.length ? Math.round((db.habits.filter(h => h.done).length / db.habits.length) * 100) : 0;
 
   return (
     <div className="pb-28 sm:pb-8 px-4 sm:px-8 pt-4 max-w-3xl mx-auto">
@@ -1146,7 +1053,9 @@ function DevPessoal({ db, setDb }) {
 function Estatisticas({ db }) {
   const finData = db.finance.transactions.slice(-7).map((t) => ({ dia: new Date(t.date + "T00:00:00").getDate(), valor: t.amount }));
   const habitData = Array.from({ length: 7 }, (_, i) => ({ dia: WEEKDAYS[i], pct: 40 + Math.round(Math.random() * 50) }));
-  const studyAvg = Math.round(db.study.subjects.reduce((s, x) => s + x.progress, 0) / db.study.subjects.length);
+  const studyAvg = db.study.subjects.length
+    ? Math.round(db.study.subjects.reduce((s, x) => s + x.progress, 0) / db.study.subjects.length)
+    : 0;
 
   return (
     <div className="pb-28 sm:pb-8 px-4 sm:px-8 pt-4 max-w-4xl mx-auto space-y-5">
