@@ -4,20 +4,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // Site no Pages: https://rhay-pires.github.io/rhaya/docs/
-// (a raiz do repo redireciona para /docs enquanto o Source for "branch main")
 export default defineConfig(({ command }) => ({
-  // Build local/docs: paths relativos (funciona no Live Server / Go Live)
-  // Actions sobrescreve com --base /rhaya/ no workflow
   base: command === 'build' ? './' : '/',
-  resolve: {
-    // Pacote exporta entry Vue; usamos só o core JS puro (svgBanco / listarBancos)
-    alias: {
-      '@edusites/bancos-brasil': path.resolve(
-        import.meta.dirname,
-        'node_modules/@edusites/bancos-brasil/src/core.js',
-      ),
-    },
-  },
   plugins: [
     react(),
     tailwindcss(),

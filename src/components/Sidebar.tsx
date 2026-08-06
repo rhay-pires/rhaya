@@ -44,13 +44,13 @@ export function Sidebar({
         />
       )}
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-full w-[290px] flex-col p-4 transition-transform duration-300 lg:static lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 flex h-full w-[290px] flex-col p-4 transition-transform duration-300 lg:static lg:translate-x-0 lg:pointer-events-auto ${
           isGlass
             ? 'border-r border-white/40'
             : isMinimal
               ? 'border-r border-[var(--app-border)]'
               : 'border-r-2 border-[#1F2937]/10 bg-[var(--app-card)] dark:border-white/10'
-        } ${open ? 'translate-x-0' : '-translate-x-full'}`}
+        } ${open ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none lg:pointer-events-auto'}`}
         style={isGlass ? undefined : { background: 'var(--app-card)' }}
       >
         <div className="mb-6 flex items-center justify-between px-1">
@@ -204,16 +204,13 @@ export function Sidebar({
 export function MobileMenuButton({ onClick }: { onClick: () => void }) {
   const { settings } = useSettings()
   const isGlass = settings.visualStyle === 'glass'
-  const isMinimal = settings.visualStyle === 'minimal'
   return (
     <button
       onClick={onClick}
       className={
         isGlass
-          ? 'glass-chip rounded-[16px] p-2.5 text-[var(--app-fg)] transition hover:scale-105 lg:hidden'
-          : isMinimal
-            ? 'soft-chip rounded-[16px] p-2.5 text-[var(--app-fg)] transition hover:scale-105 lg:hidden'
-            : 'rounded-[16px] border-2 border-[#1F2937] bg-white p-2.5 text-[#1F2937] shadow-[3px_3px_0_#1F2937] hover:scale-105 lg:hidden'
+          ? 'glass-chip rounded-[16px] p-2.5 text-[var(--app-fg)] transition lg:hidden'
+          : 'soft-chip rounded-[16px] p-2.5 text-[var(--app-fg)] transition lg:hidden'
       }
       aria-label="Abrir menu"
     >

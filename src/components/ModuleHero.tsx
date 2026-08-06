@@ -27,7 +27,7 @@ export function ModuleHero({
 
   return (
     <div
-      className={`relative overflow-hidden p-5 md:p-6 ${panelClass}`}
+      className={`relative overflow-hidden p-4 md:p-6 ${panelClass}`}
       style={
         isSoft
           ? isMinimal
@@ -56,7 +56,7 @@ export function ModuleHero({
           </p>
           {value && (
             <div
-              className={`mt-1 text-3xl font-bold md:text-4xl ${
+              className={`mt-1 text-2xl font-bold md:text-4xl ${
                 isSoft ? 'text-[var(--app-fg)]' : 'text-[#1F2937]'
               }`}
             >

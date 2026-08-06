@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -20,7 +20,6 @@ import {
   Moon,
   Plus,
   Repeat,
-  Settings2,
   Smile,
   Sparkles,
   Square,
@@ -64,7 +63,25 @@ type LayoutGroup =
   | { type: 'squares'; items: DashboardWidgetConfig[] }
   | { type: 'card'; item: DashboardWidgetConfig }
 
-const MAX_SQUARES_PER_ROW = 3
+const MAX_SQUARES_PER_ROW = 2
+
+/** Strong ease-out — Emil design-eng (never ease-in on enter) */
+const EASE_OUT = [0.23, 1, 0.32, 1] as const
+
+function widgetEnter(reduceMotion: boolean, delay = 0) {
+  if (reduceMotion) {
+    return {
+      initial: false as const,
+      animate: { opacity: 1, transform: 'translateY(0px) scale(1)' },
+      transition: { duration: 0 },
+    }
+  }
+  return {
+    initial: { opacity: 0, transform: 'translateY(10px) scale(0.96)' },
+    animate: { opacity: 1, transform: 'translateY(0px) scale(1)' },
+    transition: { duration: 0.22, ease: EASE_OUT, delay },
+  }
+}
 
 function flushSquares(groups: LayoutGroup[], squares: DashboardWidgetConfig[]) {
   for (let i = 0; i < squares.length; i += MAX_SQUARES_PER_ROW) {
@@ -139,8 +156,6 @@ export function Dashboard() {
     applyDashboardPreset,
   } = useSettings()
   const isGlass = settings.visualStyle === 'glass'
-  const isMinimal = settings.visualStyle === 'minimal'
-  const isSoft = isGlass || isMinimal
   const { navigate } = useNavigation()
   const [editOpen, setEditOpen] = useState(false)
   const [widgetTab, setWidgetTab] = useState<'padrao' | 'personalizar'>('padrao')
@@ -153,22 +168,25 @@ export function Dashboard() {
 
   const today = todayISO()
   const week = useMemo(() => weekAround(today), [today])
-  const theme = getModule('dashboard')?.color ?? '#D1C4FF'
 
-  const surfaceStyle = (color: string): CSSProperties =>
+  /** Essential-style pastel surface — only used on Dashboard widgets */
+  const dashSurface = (color: string): CSSProperties =>
     isGlass
       ? {
-          background: `linear-gradient(160deg, ${color} 0%, color-mix(in srgb, ${color} 72%, white) 100%)`,
+          background: `linear-gradient(165deg, color-mix(in srgb, ${color} 42%, white) 0%, color-mix(in srgb, ${color} 18%, white) 100%)`,
           ['--accent' as string]: color,
         }
-      : isMinimal
-        ? {
-            background: `color-mix(in srgb, ${color} 82%, white)`,
-            ['--accent' as string]: color,
-          }
-        : { background: color }
+      : {
+          background: `color-mix(in srgb, ${color} 24%, white)`,
+          ['--accent' as string]: color,
+        }
 
-  const iconBadgeStyle = (color: string): CSSProperties => ({ background: color })
+  const iconBadgeStyle = (color: string): CSSProperties => ({
+    background: `color-mix(in srgb, ${color} 55%, white)`,
+  })
+
+  const dashCardClass =
+    'dash-hero w-full overflow-hidden rounded-[28px] text-left pressable'
 
   const activeWidgets = useMemo(() => {
     const enabledIds = new Set(enabledModules.map((m) => m.id))
@@ -320,8 +338,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('financas')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
           <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
@@ -334,8 +352,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('financas')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={Wallet} label={label} subtitle="Saldo e fluxo do mês" />
           <div className="grid grid-cols-2 gap-2 p-4 pt-0 sm:grid-cols-3">
@@ -353,67 +371,34 @@ export function Dashboard() {
     if (w.moduleId === 'agenda') {
       // Card médio: módulo Agenda + próximos compromissos
       if (mod === 'proximo') {
-        const list = upcoming.slice(0, 3)
+        const next = upcoming[0]
         return (
-          <div
-            className="overflow-hidden rounded-[28px] border-2 border-[#1F2937] shadow-[4px_4px_0_#1F2937] ink-surface"
-            style={surfaceStyle(color)}
+          <button
+            type="button"
+            onClick={() => openModule('agenda')}
+            className="dash-tile pressable flex w-full items-center gap-3 bg-white px-4 py-4 text-left"
+            style={dashSurface(color)}
           >
-            <button type="button" onClick={() => openModule('agenda')} className="w-full text-left">
-              <WidgetHeader
-                Icon={CalendarDays}
-                page={label}
-                label="Próximos"
-                subtitle={
-                  upcoming.length
-                    ? `${upcoming.length} na fila`
-                    : 'Nada agendado'
-                }
-                color={color}
-              />
-            </button>
-            <div className="space-y-2 px-3 pb-4">
-              {list.length === 0 ? (
-                <p className="rounded-[18px] border-2 border-dashed border-[#1F2937]/20 bg-white/50 py-5 text-center text-sm text-[#1F2937]/50">
-                  Agenda livre por agora
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+              style={iconBadgeStyle(color)}
+            >
+              <CalendarDays size={18} className="text-[#1F2937]" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium text-[#1F2937]/45">Agenda</p>
+              {next ? (
+                <p className="truncate text-base font-bold text-[#1F2937]">
+                  <span className="tabular-nums">{next.time}</span>
+                  <span className="text-[#1F2937]/35"> · </span>
+                  {next.title}
                 </p>
               ) : (
-                list.map((a) => {
-                  const when = new Date(a.date + 'T12:00:00')
-                  const dayLabel =
-                    a.date === today
-                      ? 'Hoje'
-                      : when.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' })
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => openModule('agenda')}
-                      className="flex w-full items-center gap-3 rounded-[18px] border-2 border-[#1F2937]/15 bg-white/75 px-2.5 py-2.5 text-left transition hover:bg-white"
-                    >
-                      <span className="flex min-w-[3.25rem] flex-col items-center justify-center rounded-[14px] border-2 border-[#1F2937]/10 bg-white px-2 py-1.5">
-                        <span className="text-[9px] font-bold uppercase text-[#1F2937]/55">
-                          {dayLabel}
-                        </span>
-                        <span className="text-sm font-bold tabular-nums text-[#1F2937]">
-                          {a.time}
-                        </span>
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-[#1F2937]">{a.title}</p>
-                        {a.priority && (
-                          <span className="mt-0.5 text-[10px] font-bold capitalize text-[#1F2937]/50">
-                            {a.priority}
-                          </span>
-                        )}
-                      </div>
-                      <ChevronRight size={16} strokeWidth={2.5} className="shrink-0 text-[#1F2937]/35" />
-                    </button>
-                  )
-                })
+                <p className="text-base font-bold text-[#1F2937]/40">Livre</p>
               )}
             </div>
-          </div>
+            <ChevronRight size={18} className="shrink-0 text-[#1F2937]/30" />
+          </button>
         )
       }
 
@@ -428,8 +413,8 @@ export function Dashboard() {
 
       return (
         <div
-          className="overflow-hidden rounded-[28px] border-2 border-[#1F2937] shadow-[4px_4px_0_#1F2937] ink-surface"
-          style={surfaceStyle(color)}
+          className="dash-hero overflow-hidden rounded-[28px]"
+          style={dashSurface(color)}
         >
           <button type="button" onClick={() => openModule('agenda')} className="w-full text-left">
             <WidgetHeader
@@ -447,7 +432,7 @@ export function Dashboard() {
               onClick={() => openModule('agenda')}
               className="w-full px-3 pb-3"
             >
-              <div className="flex justify-between gap-1 rounded-[22px] border-2 border-[#1F2937]/15 bg-white/70 p-2">
+              <div className="flex justify-between gap-1 rounded-[22px] bg-white/70 p-2">
                 {week.map((date) => {
                   const d = new Date(date + 'T12:00:00')
                   const active = date === today
@@ -460,11 +445,9 @@ export function Dashboard() {
                     <div
                       key={date}
                       className={`flex flex-1 flex-col items-center gap-1 rounded-[16px] px-0.5 py-2 transition ${
-                        active
-                          ? 'border-2 border-[#1F2937] shadow-[2px_2px_0_#1F2937]'
-                          : 'bg-transparent'
+                        active ? 'shadow-[0_4px_12px_rgba(15,23,42,0.08)]' : 'bg-transparent'
                       }`}
-                      style={active ? { background: color } : undefined}
+                      style={active ? { background: `color-mix(in srgb, ${color} 55%, white)` } : undefined}
                     >
                       <span
                         className={`text-[9px] font-bold uppercase tracking-wide ${
@@ -554,8 +537,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('habitos')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
@@ -566,8 +549,8 @@ export function Dashboard() {
       const list = mod === 'pendentes' ? pendingHabits.slice(0, 4) : habits.slice(0, 4)
       return (
         <div
-          className="overflow-hidden rounded-[28px] border-2 border-[#1F2937] shadow-[4px_4px_0_#1F2937] ink-surface"
-          style={surfaceStyle(color)}
+          className="dash-hero overflow-hidden rounded-[28px]"
+          style={dashSurface(color)}
         >
           <button type="button" onClick={() => openModule('habitos')} className="w-full text-left">
             <WidgetHeader
@@ -629,8 +612,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('trabalho')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] p-4 text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={`${dashCardClass} p-4`}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="mt-2 text-3xl font-bold text-[#1F2937]">{data.value}</p>
@@ -641,8 +624,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('trabalho')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] p-4 text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={`${dashCardClass} p-4`}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={Briefcase} label={label} />
           <div className="mt-3 grid grid-cols-3 gap-2">
@@ -661,8 +644,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('metas')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={Target} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{avgLifeGoal}%</p>
@@ -673,8 +656,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('metas')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={Target} label={label} />
           <div className="space-y-2 px-4 pb-4">
@@ -704,8 +687,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('estudos')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={BookOpen} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{avgSubject}%</p>
@@ -716,8 +699,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('estudos')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={BookOpen} label={label} />
           <div className="space-y-2 px-4 pb-4">
@@ -743,8 +726,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('saude')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
@@ -755,8 +738,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('saude')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={HeartPulse} label={label} />
           <div className="grid grid-cols-3 gap-2 px-4 pb-4">
@@ -777,8 +760,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('devpessoal')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={Sparkles} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-sm font-medium text-[#1F2937]">“{quoteOfDay()}”</p>
@@ -791,8 +774,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('devpessoal')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
@@ -803,8 +786,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('devpessoal')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={Sparkles} label={label} />
           <div className="space-y-2 px-4 pb-4">
@@ -827,8 +810,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('estatisticas')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={data.Icon} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{data.value}</p>
@@ -839,8 +822,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('estatisticas')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={BarChart3} label={label} />
           <div className="grid grid-cols-3 gap-2 px-4 pb-4">
@@ -858,8 +841,8 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => openModule('conteudo')}
-            className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-            style={surfaceStyle(color)}
+            className={dashCardClass}
+            style={dashSurface(color)}
           >
             <WidgetHeader Icon={Clapperboard} page={label} label={modTitle} color={color} />
             <p className="px-4 pb-5 text-3xl font-bold text-[#1F2937]">{contentOpen.length}</p>
@@ -870,8 +853,8 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => openModule('conteudo')}
-          className="w-full overflow-hidden rounded-[28px] border-2 border-[#1F2937] text-left shadow-[4px_4px_0_#1F2937] ink-surface transition hover:scale-[1.01]"
-          style={surfaceStyle(color)}
+          className={dashCardClass}
+          style={dashSurface(color)}
         >
           <WidgetHeader Icon={Clapperboard} label={label} />
           <div className="space-y-2 px-4 pb-4">
@@ -894,8 +877,8 @@ export function Dashboard() {
       <button
         type="button"
         onClick={() => openModule(w.moduleId)}
-        className="w-full rounded-[28px] border-2 border-[#1F2937] p-4 text-left shadow-[4px_4px_0_#1F2937] ink-surface"
-        style={surfaceStyle(color)}
+        className={`${dashCardClass} p-4`}
+        style={dashSurface(color)}
       >
         <WidgetHeader Icon={Icon} label={label} />
       </button>
@@ -910,132 +893,193 @@ export function Dashboard() {
       <button
         type="button"
         onClick={() => openModule(w.moduleId)}
-        className={
-          isSoft
-            ? `${isGlass ? 'glass-widget' : 'ink-surface'} flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[24px] p-2 text-center transition hover:scale-[1.03] sm:gap-1.5 sm:p-3`
-            : 'flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[24px] border-2 border-[#1F2937] p-2 text-center shadow-[3px_3px_0_#1F2937] ink-surface transition hover:scale-[1.03] sm:gap-1.5 sm:p-3'
-        }
-        style={surfaceStyle(color)}
+        className="dash-tile pressable flex aspect-[1.05] w-full flex-col items-start justify-between bg-white p-4 text-left"
+        style={dashSurface(color)}
       >
-        <p className="max-w-full truncate px-0.5 text-[9px] font-bold uppercase tracking-wide text-[#1F2937]/55 sm:text-[10px]">
-          {pageName}
-        </p>
         <span
-          className={
-            isSoft
-              ? `${isGlass ? 'glass-accent' : 'soft-accent'} flex h-8 w-8 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10`
-              : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-white sm:h-10 sm:w-10 sm:rounded-[16px]'
-          }
+          className="flex h-9 w-9 items-center justify-center rounded-full"
           style={iconBadgeStyle(color)}
         >
-          <data.Icon size={18} className="text-[#1F2937]" />
+          <data.Icon size={16} className="text-[#1F2937]" />
         </span>
-        <p className="max-w-full truncate px-0.5 text-sm font-bold leading-tight text-[#1F2937] sm:text-lg">
-          {data.value}
-        </p>
-        <p className="max-w-full truncate text-[9px] font-bold uppercase tracking-wide text-[#1F2937]/65 sm:text-[10px]">
-          {data.label}
-        </p>
+        <div className="w-full min-w-0">
+          <p className="truncate text-2xl font-bold leading-none tracking-tight text-[#1F2937] sm:text-3xl">
+            {data.value}
+          </p>
+          <p className="mt-1 truncate text-xs font-medium text-[#1F2937]/50">{pageName}</p>
+        </div>
       </button>
     )
   }
 
   const addModalities = addModule ? modalitiesFor(addModule) : []
+  const reduceMotion = settings.reduceMotion
+  const [selectedDay, setSelectedDay] = useState(today)
+
+  const weekDaysDone = useMemo(
+    () => week.filter((d) => habits.some((h) => h.completedDates.includes(d))).length,
+    [week, habits],
+  )
+  const weekRingPct = Math.round((weekDaysDone / 7) * 100)
+  const dayAppts = appointments
+    .filter((a) => a.date === selectedDay)
+    .sort((a, b) => a.time.localeCompare(b.time))
+    .slice(0, 1)
+
+  const monthTitle = new Date(today + 'T12:00:00').toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  })
+
+  const enter = (delay: number) => widgetEnter(reduceMotion, delay)
+
+  const openWidgetEditor = (tab: 'padrao' | 'personalizar' = 'personalizar') => {
+    setWidgetTab(tab)
+    setEditOpen(true)
+  }
+
+  // Renderers do grid custom — usados só se reativarmos a seção na home
+  void layout
+  void renderCard
+  void renderSquare
 
   return (
-    <div className="pb-8">
-      <div className="mb-4 flex items-end justify-between gap-3 md:mb-5">
-        <div>
-          <p className="text-sm font-semibold text-slate-500">
-            {new Date(today + 'T12:00:00').toLocaleDateString('pt-BR', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'short',
-            })}
+    <div className="space-y-3.5 pb-6 md:space-y-5 md:pb-10">
+      {/* 1. Hero */}
+      <motion.button
+        type="button"
+        onClick={() => openModule('habitos')}
+        {...enter(0)}
+        className="pressable flex w-full items-center justify-between gap-3 rounded-[28px] bg-[#C8F560] px-5 py-6 text-left md:gap-4 md:rounded-[32px] md:px-6 md:py-7"
+      >
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-xs text-[#1F2937]/65 md:text-sm">
+            <Zap size={13} /> Rotina
           </p>
-          <h2 className="mt-0.5 text-3xl font-bold tracking-tight text-[var(--app-fg)]">Seu dia</h2>
-          <p className="mt-1 text-xs text-slate-400">O essencial do dia, no seu jeito</p>
+          <h2 className="mt-1 text-[1.45rem] font-bold leading-[1.15] tracking-tight text-[#1F2937] md:text-[1.65rem]">
+            Seu progresso
+            <br />
+            da semana
+          </h2>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setWidgetTab('padrao')
-              setEditOpen(true)
-            }}
-            className={
-              isGlass
-                ? 'glass-chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-[var(--app-fg)] transition hover:scale-105'
-                : isMinimal
-                  ? 'soft-chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-[var(--app-fg)] transition hover:scale-105'
-                  : 'flex items-center gap-1.5 rounded-full border-2 border-[#1F2937] bg-white px-3 py-1.5 text-xs font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937] hover:scale-105'
-            }
-          >
-            <Settings2 size={14} /> Widgets
-          </button>
-          <span
-            className={
-              isGlass
-                ? 'glass-chip rounded-full px-3 py-1.5 text-xs font-bold'
-                : isMinimal
-                  ? 'soft-chip rounded-full px-3 py-1.5 text-xs font-bold'
-                  : 'rounded-full border-2 border-[#1F2937] px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_#1F2937] ink-surface'
-            }
-            style={
-              isSoft
-                ? isMinimal
-                  ? { color: '#ea580c' }
-                  : { boxShadow: `0 4px 16px ${theme}66` }
-                : { background: theme }
-            }
-          >
-            🔥 {bestStreak}
-          </span>
-        </div>
-      </div>
+        <ProgressRing pct={weekRingPct} label={`${weekDaysDone} dias`} />
+      </motion.button>
 
-      <div className="space-y-4">
-        {layout.map((group, gi) => {
-          if (group.type === 'squares') {
+      {/* 2. Dois cards */}
+      <motion.div {...enter(0.05)} className="grid grid-cols-2 gap-2.5 md:gap-3">
+        <button
+          type="button"
+          onClick={() => openModule('habitos')}
+          className="dash-tile pressable flex flex-col gap-4 bg-white p-3.5 text-left md:gap-5 md:p-4"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[#1F2937]/50 md:text-sm">Hábitos</p>
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FFEDD5] md:h-8 md:w-8">
+              <Zap size={14} className="text-orange-600" />
+            </span>
+          </div>
+          <p className="text-[1.55rem] font-bold leading-none tracking-tight text-[#1F2937] md:text-[1.75rem]">
+            {habitPct}
+            <span className="text-base font-semibold text-[#1F2937]/40">%</span>
+          </p>
+        </button>
+        <button
+          type="button"
+          onClick={() => openModule('saude')}
+          className="dash-tile pressable flex flex-col gap-4 bg-white p-3.5 text-left md:gap-5 md:p-4"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[#1F2937]/50 md:text-sm">Água</p>
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#DBEAFE] md:h-8 md:w-8">
+              <Droplets size={14} className="text-sky-600" />
+            </span>
+          </div>
+          <p className="text-[1.55rem] font-bold leading-none tracking-tight text-[#1F2937] md:text-[1.75rem]">
+            {Math.round(health.waterMl / 250)}
+            <span className="ml-1 text-sm font-semibold text-[#1F2937]/40">copos</span>
+          </p>
+        </button>
+      </motion.div>
+
+      {/* 3. Semana */}
+      <motion.div {...enter(0.08)}>
+        <p className="mb-2 px-0.5 text-sm font-bold capitalize text-[var(--app-fg)] md:text-base">
+          {monthTitle}
+        </p>
+        <div className="dash-tile flex gap-0.5 bg-white p-1.5 md:gap-1 md:p-2">
+          {week.map((date) => {
+            const d = new Date(date + 'T12:00:00')
+            const active = date === selectedDay
+            const weekday = d.toLocaleDateString('pt-BR', { weekday: 'narrow' })
             return (
-              <motion.div
-                key={`sq-${gi}-${group.items.map((i) => i.id).join('-')}`}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: gi * 0.04 }}
-                className="grid grid-cols-3 gap-2 sm:gap-3"
+              <button
+                key={date}
+                type="button"
+                onClick={() => setSelectedDay(date)}
+                className={`pressable flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 md:gap-1 md:py-2.5 ${
+                  active ? 'bg-[#C8F560] text-[#1F2937]' : 'text-[#1F2937]/45'
+                }`}
               >
-                {group.items.map((w) => (
-                  <div key={w.id} className="min-w-0">
-                    {renderSquare(w)}
-                  </div>
-                ))}
-              </motion.div>
+                <span className="text-[9px] font-medium md:text-[10px]">{weekday}</span>
+                <span className="text-xs font-bold md:text-sm">{d.getDate()}</span>
+              </button>
             )
-          }
-          return (
-            <motion.div
-              key={group.item.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: gi * 0.04 }}
-            >
-              {renderCard(group.item)}
-            </motion.div>
-          )
-        })}
-      </div>
-
-      {activeWidgets.length === 0 && (
-        <div className="rounded-[28px] border-2 border-dashed border-slate-300 py-12 text-center">
-          <p className="text-sm text-slate-400">Nenhum widget ativo</p>
-          <button
-            onClick={() => setEditOpen(true)}
-            className="mt-3 rounded-full border-2 border-[#1F2937] bg-[#FFEA5D] px-4 py-2 text-sm font-bold text-[#1F2937]"
-          >
-            Montar dashboard
-          </button>
+          })}
         </div>
-      )}
+      </motion.div>
+
+      {/* 4. Agenda do dia */}
+      <motion.div {...enter(0.12)} className="space-y-2.5">
+        {dayAppts.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => openModule('agenda')}
+            className="dash-tile pressable flex w-full items-center gap-3 bg-white px-3.5 py-3.5 text-left md:px-4 md:py-4"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FFEDD5] md:h-10 md:w-10">
+              <Flame size={15} className="text-orange-600" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#1F2937]">Agenda livre</p>
+              <p className="text-xs text-[#1F2937]/45">Toque para adicionar</p>
+            </div>
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F1F5F9] md:h-9 md:w-9">
+              <Plus size={15} />
+            </span>
+          </button>
+        ) : (
+          dayAppts.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => openModule('agenda')}
+              className="dash-tile pressable flex w-full items-center gap-3 bg-white px-3.5 py-3.5 text-left md:px-4 md:py-4"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FFEDD5] md:h-10 md:w-10">
+                <Flame size={15} className="text-orange-600" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[#1F2937]">{a.title}</p>
+                <p className="text-xs tabular-nums text-[#1F2937]/45">{a.time}</p>
+              </div>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F1F5F9] md:h-9 md:w-9">
+                <ChevronRight size={15} />
+              </span>
+            </button>
+          ))
+        )}
+      </motion.div>
+
+      {/* Personalizar — fora da dobra principal */}
+      <div className="flex justify-center pt-2">
+        <button
+          type="button"
+          onClick={() => openWidgetEditor('personalizar')}
+          className="pressable text-xs font-medium text-[var(--app-muted)] underline-offset-2 hover:underline"
+        >
+          Personalizar widgets
+        </button>
+      </div>
 
       <Modal open={editOpen} title="Widgets do dashboard" onClose={() => setEditOpen(false)}>
         <div className="mb-4 flex gap-2 rounded-[16px] border-2 border-[#1F2937] bg-slate-50 p-1">
@@ -1079,7 +1123,7 @@ export function Dashboard() {
                     )
                     setActivePreset(preset.id)
                   }}
-                  className={`flex w-full items-start gap-3 rounded-[20px] border-2 border-[#1F2937] p-4 text-left shadow-[2px_2px_0_#1F2937] transition hover:scale-[1.01] ${
+                  className={`flex w-full items-start gap-3 rounded-[20px] border-2 border-[#1F2937] p-4 text-left shadow-[2px_2px_0_#1F2937] pressable ${
                     selected ? 'bg-[#A5F387]' : 'bg-white'
                   }`}
                 >
@@ -1136,7 +1180,7 @@ export function Dashboard() {
                         </span>
                         <span
                           className="truncate rounded-full border-2 border-[#1F2937] px-2.5 py-0.5 text-xs font-bold ink-surface"
-                          style={surfaceStyle(color)}
+                          style={dashSurface(color)}
                         >
                           {moduleLabel(w.moduleId)}
                         </span>
@@ -1351,50 +1395,72 @@ export function Dashboard() {
         />
       </Modal>
 
-      {/* FAB — atalhos rápidos sem poluir a home */}
-      <div className="pointer-events-none fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2 md:bottom-8 md:right-8">
-        {fabOpen && (
-          <div className="pointer-events-auto mb-1 flex flex-col items-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setFabOpen(false)
-                setQuickModal('despesa')
-              }}
-              className="flex min-h-11 items-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#FDA4AF] px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-[3px_3px_0_#1F2937]"
+      {/* FAB — acima da tab bar no mobile */}
+      <div className="pointer-events-none fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2 lg:bottom-8 lg:right-8">
+        <AnimatePresence>
+          {fabOpen && (
+            <motion.div
+              key="fab-menu"
+              className="pointer-events-auto mb-1 flex flex-col items-end gap-2"
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={reduceMotion ? undefined : { opacity: 0 }}
+              transition={{ duration: 0.15, ease: EASE_OUT }}
             >
-              Despesa
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFabOpen(false)
-                setQuickModal('compromisso')
-              }}
-              className="flex min-h-11 items-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#BAE6FD] px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-[3px_3px_0_#1F2937]"
-            >
-              Compromisso
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFabOpen(false)
-                setQuickModal('tarefa')
-              }}
-              className="flex min-h-11 items-center gap-2 rounded-full border-2 border-[#1F2937] bg-[#A5F387] px-4 py-2.5 text-sm font-bold text-[#1F2937] shadow-[3px_3px_0_#1F2937]"
-            >
-              Tarefa
-            </button>
-          </div>
-        )}
-        <button
+              {(
+                [
+                  { id: 'despesa' as const, label: 'Despesa', bg: 'bg-[#FDA4AF]' },
+                  { id: 'compromisso' as const, label: 'Compromisso', bg: 'bg-[#BAE6FD]' },
+                  { id: 'tarefa' as const, label: 'Tarefa', bg: 'bg-[#A5F387]' },
+                ] as const
+              ).map((item, i) => (
+                <motion.button
+                  key={item.id}
+                  type="button"
+                  initial={
+                    reduceMotion
+                      ? false
+                      : { opacity: 0, transform: 'translateY(8px) scale(0.95)' }
+                  }
+                  animate={{ opacity: 1, transform: 'translateY(0px) scale(1)' }}
+                  exit={
+                    reduceMotion
+                      ? undefined
+                      : { opacity: 0, transform: 'translateY(8px) scale(0.95)' }
+                  }
+                  whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                  transition={{
+                    duration: 0.18,
+                    ease: EASE_OUT,
+                    delay: reduceMotion ? 0 : i * 0.04,
+                  }}
+                  onClick={() => {
+                    setFabOpen(false)
+                    setQuickModal(item.id)
+                  }}
+                  className={`flex min-h-11 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-[#1F2937] shadow-[0_8px_20px_rgba(15,23,42,0.08)] ${item.bg}`}
+                >
+                  {item.label}
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <motion.button
           type="button"
           aria-label={fabOpen ? 'Fechar atalhos' : 'Atalhos rápidos'}
           onClick={() => setFabOpen((o) => !o)}
-          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#1F2937] bg-[#1F2937] text-white shadow-[4px_4px_0_#FFEA5D] transition hover:scale-105"
+          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#1C1917] text-white shadow-[var(--shadow-lift)]"
+          animate={
+            reduceMotion
+              ? undefined
+              : { transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)' }
+          }
+          whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+          transition={{ duration: 0.18, ease: EASE_OUT }}
         >
           {fabOpen ? <X size={24} /> : <Plus size={24} />}
-        </button>
+        </motion.button>
       </div>
     </div>
   )
@@ -1548,6 +1614,43 @@ function QuickTaskForm({ onSave }: { onSave: (task: Omit<import('../types').Work
   )
 }
 
+function ProgressRing({ pct, label }: { pct: number; label: string }) {
+  const size = 80
+  const stroke = 8
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const clamped = Math.min(100, Math.max(0, pct))
+  const offset = c - (clamped / 100) * c
+  return (
+    <div className="relative h-20 w-20 shrink-0 md:h-[92px] md:w-[92px]">
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90" aria-hidden>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="rgba(31,41,55,0.14)"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#1F2937"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xs font-bold text-[#1F2937] md:text-sm">{label}</span>
+      </div>
+    </div>
+  )
+}
+
 function SizeBtn({
   active,
   onClick,
@@ -1592,8 +1695,8 @@ function WidgetHeader({
     <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
       <div className="flex min-w-0 items-center gap-2.5">
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border-2 border-[#1F2937] bg-white"
-          style={color ? { background: color } : undefined}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/80"
+          style={color ? { background: `color-mix(in srgb, ${color} 55%, white)` } : undefined}
         >
           <Icon size={18} className="text-[#1F2937]" />
         </span>
@@ -1611,9 +1714,9 @@ function WidgetHeader({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {trailing}
-        <span className="soft-open flex items-center gap-0.5 rounded-full border-2 border-[#1F2937] bg-white/85 px-2.5 py-1 text-[11px] font-bold text-[#1F2937] shadow-[2px_2px_0_#1F2937]">
+        <span className="flex items-center gap-0.5 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-[#1F2937]/70">
           Abrir
-          <ChevronRight size={13} strokeWidth={3} />
+          <ChevronRight size={13} strokeWidth={2.5} />
         </span>
       </div>
     </div>
@@ -1632,8 +1735,8 @@ function StatPill({
   icon?: ReactNode
 }) {
   return (
-    <div className="rounded-[16px] border-2 border-[#1F2937] px-3 py-2" style={{ background: bg }}>
-      <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#1F2937]/65">
+    <div className="dash-hero-row px-3 py-2" style={{ background: bg }}>
+      <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#1F2937]/55">
         {icon} {title}
       </p>
       <p className="mt-0.5 truncate text-sm font-bold text-[#1F2937]">{value}</p>

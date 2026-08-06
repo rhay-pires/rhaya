@@ -54,10 +54,13 @@ export interface AppSettings {
   dashboardWidgets: DashboardWidgetConfig[]
   /** Bump para reaplicar o preset Padrão após mudanças de layout */
   dashboardLayoutRev: number
+  /** Soft Essential visual migration */
+  designLanguageRev: number
 }
 
-/** Rev atual do layout Padrão (3+agenda+3). Ao subir, quem ainda está no layout antigo recebe o novo. */
-export const DASHBOARD_LAYOUT_REV = 5
+/** Rev: home só com poucos widgets enxutos */
+export const DASHBOARD_LAYOUT_REV = 6
+export const DESIGN_LANGUAGE_REV = 1
 
 const STORAGE_KEY = 'lifehub-settings-v1'
 
@@ -169,28 +172,22 @@ export function freshWidgets(
 export const DEFAULT_WIDGET_TEMPLATES: Array<
   Pick<DashboardWidgetConfig, 'moduleId' | 'modality' | 'size'>
 > = [
-  { moduleId: 'financas', modality: 'saldo', size: 'square' },
   { moduleId: 'habitos', modality: 'progresso', size: 'square' },
-  { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
-  { moduleId: 'agenda', modality: 'proximo', size: 'card' },
   { moduleId: 'saude', modality: 'agua', size: 'square' },
-  { moduleId: 'habitos', modality: 'streak', size: 'square' },
-  { moduleId: 'devpessoal', modality: 'humor', size: 'square' },
+  { moduleId: 'financas', modality: 'saldo', size: 'square' },
+  { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
 ]
 
-/** Layout ainda mais cheio — agenda em visão geral */
+/** Layout cheio — agenda + métricas extras */
 const COMPLETE_WIDGET_TEMPLATES: Array<
   Pick<DashboardWidgetConfig, 'moduleId' | 'modality' | 'size'>
 > = [
   { moduleId: 'financas', modality: 'saldo', size: 'square' },
   { moduleId: 'habitos', modality: 'progresso', size: 'square' },
   { moduleId: 'trabalho', modality: 'pendentes', size: 'square' },
-  { moduleId: 'agenda', modality: 'overview', size: 'card' },
+  { moduleId: 'agenda', modality: 'proximo', size: 'card' },
   { moduleId: 'saude', modality: 'agua', size: 'square' },
   { moduleId: 'habitos', modality: 'streak', size: 'square' },
-  { moduleId: 'devpessoal', modality: 'humor', size: 'square' },
-  { moduleId: 'metas', modality: 'media', size: 'square' },
-  { moduleId: 'estudos', modality: 'media', size: 'square' },
 ]
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetConfig[] =
@@ -207,13 +204,13 @@ export const DASHBOARD_PRESETS: {
   {
     id: 'padrao',
     label: 'Padrão',
-    description: '3 ícones → agenda → água, streak e humor',
+    description: '4 métricas — hábitos, água, saldo e tarefas',
     widgets: DEFAULT_WIDGET_TEMPLATES,
   },
   {
     id: 'compacto',
     label: 'Compacto',
-    description: 'Só ícones em fileiras — visão rápida, sem cards',
+    description: '6 ícones em fileiras',
     widgets: [
       { moduleId: 'financas', modality: 'saldo', size: 'square' },
       { moduleId: 'agenda', modality: 'hoje', size: 'square' },
@@ -226,7 +223,7 @@ export const DASHBOARD_PRESETS: {
   {
     id: 'completo',
     label: 'Completo',
-    description: 'Agenda completa + 9 métricas em ícones',
+    description: 'Métricas + card de agenda',
     widgets: COMPLETE_WIDGET_TEMPLATES,
   },
 ]
@@ -315,7 +312,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   avatarInitials: 'Rh',
   avatarUrl: null,
   themeMode: 'system',
-  visualStyle: 'playful',
+  visualStyle: 'minimal',
   waterGoalMl: 2000,
   sleepGoalHours: 8,
   weekStartsOn: 0,
@@ -323,6 +320,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reduceMotion: false,
   dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
   dashboardLayoutRev: DASHBOARD_LAYOUT_REV,
+  designLanguageRev: DESIGN_LANGUAGE_REV,
 }
 
 export const VISUAL_STYLES: {
@@ -334,7 +332,7 @@ export const VISUAL_STYLES: {
   {
     id: 'playful',
     label: 'Colorido',
-    description: 'Bento vibrante, bordas fortes e visual divertido',
+    description: 'Pastéis fortes e visual mais marcante',
     preview: ['#D1C4FF', '#FFEA5D', '#70CFFF', '#A5F387'],
   },
   {
@@ -345,9 +343,9 @@ export const VISUAL_STYLES: {
   },
   {
     id: 'minimal',
-    label: 'Simples',
-    description: 'Limpo e claro, com toques de cor nos detalhes',
-    preview: ['#FFFFFF', '#DBEAFE', '#FED7AA', '#3B82F6'],
+    label: 'Essential',
+    description: 'Calmo e premium — limão suave, muito respiro',
+    preview: ['#F6F4F1', '#C8F560', '#FFFFFF', '#1C1917'],
   },
 ]
 
@@ -383,13 +381,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const saved = loadJSON<Partial<AppSettings>>(STORAGE_KEY, {})
     const savedRev = saved.dashboardLayoutRev ?? 0
     const needsLayoutRefresh = savedRev < DASHBOARD_LAYOUT_REV
+    const needsDesignRefresh = (saved.designLanguageRev ?? 0) < DESIGN_LANGUAGE_REV
     return {
       ...DEFAULT_SETTINGS,
       ...saved,
+      visualStyle: needsDesignRefresh ? 'minimal' : (saved.visualStyle ?? 'minimal'),
       dashboardWidgets: needsLayoutRefresh
         ? freshWidgets(DEFAULT_WIDGET_TEMPLATES)
         : normalizeWidgets(saved.dashboardWidgets),
       dashboardLayoutRev: DASHBOARD_LAYOUT_REV,
+      designLanguageRev: DESIGN_LANGUAGE_REV,
     }
   })
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
@@ -400,15 +401,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveJSON(STORAGE_KEY, settings)
   }, [settings])
 
-  // Garante migração mesmo com HMR / sessão já aberta (useState init não roda de novo)
   useEffect(() => {
-    if (settings.dashboardLayoutRev >= DASHBOARD_LAYOUT_REV) return
-    setSettings((s) => ({
-      ...s,
-      dashboardWidgets: freshWidgets(DEFAULT_WIDGET_TEMPLATES),
-      dashboardLayoutRev: DASHBOARD_LAYOUT_REV,
-    }))
-  }, [settings.dashboardLayoutRev])
+    if (settings.dashboardLayoutRev >= DASHBOARD_LAYOUT_REV && settings.designLanguageRev >= DESIGN_LANGUAGE_REV)
+      return
+    setSettings((s) => {
+      const next = { ...s }
+      if (s.dashboardLayoutRev < DASHBOARD_LAYOUT_REV) {
+        next.dashboardWidgets = freshWidgets(DEFAULT_WIDGET_TEMPLATES)
+        next.dashboardLayoutRev = DASHBOARD_LAYOUT_REV
+      }
+      if (s.designLanguageRev < DESIGN_LANGUAGE_REV) {
+        next.visualStyle = 'minimal'
+        next.designLanguageRev = DESIGN_LANGUAGE_REV
+      }
+      return next
+    })
+  }, [settings.dashboardLayoutRev, settings.designLanguageRev])
 
   useEffect(() => {
     const apply = () => setResolvedTheme(resolveTheme(settings.themeMode))

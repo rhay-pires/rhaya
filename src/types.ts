@@ -98,7 +98,7 @@ export type TransactionCategory =
   | 'Moradia'
   | 'Saúde'
 
-/** Bank slug from bancos-brasil, e.g. nubank, itau, c6 */
+/** Identificador simples do banco, e.g. nubank, itau, c6 */
 export type BankName = string
 
 export interface BankAccount {

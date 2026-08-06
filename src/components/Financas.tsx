@@ -64,13 +64,13 @@ const CATEGORIES: TransactionCategory[] = [
 const COLORS = ['#6C4BFF', '#8B5CF6', '#3B82F6', '#34D399', '#FB7185', '#F59E0B', '#06B6D4', '#EC4899']
 
 const tabs: { id: FinTab; label: string }[] = [
-  { id: 'resumo', label: '📊 Resumo' },
-  { id: 'faturas', label: '💳 Faturas' },
-  { id: 'extrato', label: '📋 Extrato' },
-  { id: 'limites', label: '⚠️ Limites' },
-  { id: 'metas', label: '🎯 Metas' },
-  { id: 'decisao', label: '🧠 Should I Buy?' },
-  { id: 'assinaturas', label: '🔄 Assinaturas' },
+  { id: 'resumo', label: 'Resumo' },
+  { id: 'faturas', label: 'Faturas' },
+  { id: 'extrato', label: 'Extrato' },
+  { id: 'limites', label: 'Limites' },
+  { id: 'metas', label: 'Metas' },
+  { id: 'decisao', label: 'Should I Buy?' },
+  { id: 'assinaturas', label: 'Assinaturas' },
 ]
 
 export function Financas() {
